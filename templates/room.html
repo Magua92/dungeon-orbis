@@ -21,9 +21,19 @@
     <div style="font-family:'Cinzel',serif;color:var(--gold-light);margin:0.3rem 0">{{ rt.name }}</div>
     <div style="font-size:0.78rem;opacity:0.75;margin-bottom:0.7rem">{{ rt.desc }}</div>
     {% if opt == 'incudine' %}
+    <div style="font-size:0.72rem;opacity:0.65;margin-bottom:0.4rem">Costo: {{ incudine_cost }} Oro (hai {{ run.treasure.oro }})</div>
     <select name="stat_choice" style="width:100%;margin-bottom:0.6rem">
-      {% for io in incudine_options %}<option value="{{ io.stat }}">{{ io.label }}</option>{% endfor %}
+      {% for io in incudine_options %}
+      <option value="{{ io.stat }}">
+        {% if io.stat == 'dmg' %}+{{ incudine_amount }} Danno Fisico
+        {% elif io.stat == 'armor' %}+{{ incudine_amount }} Armatura
+        {% else %}+{{ incudine_amount }} Resistenza Mentale{% endif %}
+      </option>
+      {% endfor %}
     </select>
+    {% endif %}
+    {% if opt == 'sacco_monete' %}
+    <div style="font-size:0.72rem;opacity:0.65;margin-bottom:0.6rem">Costo: {{ sacco_monete_cost }} Oro (hai {{ run.treasure.oro }})</div>
     {% endif %}
     <button type="submit" class="btn" style="width:100%">Vai</button>
   </form>
