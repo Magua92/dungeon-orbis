@@ -131,7 +131,10 @@ def room():
     options = run["rooms_plan"][run["room_index"]]
     return render_template("room.html", run=run, options=options, room_types=gd.ROOM_TYPES,
                             room_number=run["room_index"] + 1, total_rooms=gd.ROOMS_PER_RUN,
-                            incudine_options=gd.INCUDINE_OPTIONS)
+                            incudine_options=gd.INCUDINE_OPTIONS,
+                            incudine_cost=engine.incudine_cost(run),
+                            incudine_amount=engine.incudine_buff_amount(run),
+                            sacco_monete_cost=engine.sacco_monete_cost(run))
 
 
 @app.route("/choose_room", methods=["POST"])
