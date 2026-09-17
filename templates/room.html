@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+{% include "_status.html" %}
+
+<div style="text-align:center;margin-bottom:1.2rem">
+  <h2>🗺️ Stanza {{ room_number }} di {{ total_rooms }}</h2>
+  <div style="display:flex;justify-content:center;gap:0.4rem;margin-top:0.4rem">
+    {% for i in range(total_rooms) %}
+    <span style="width:9px;height:9px;border-radius:50%;display:inline-block;background:{% if i < run.room_index %}var(--gold){% elif i == run.room_index %}var(--gold-light){% else %}#4a3d28{% endif %}"></span>
+    {% endfor %}
+    <span style="width:9px;height:9px;display:inline-block;background:#4a3d28;transform:rotate(45deg)"></span>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem">
+  {% for opt in options %}
+  {% set rt = room_types[opt] %}
+  <form method="post" action="/choose_room" class="panel-box" style="text-align:center">
+    <input type="hidden" name="room_type" value="{{ opt }}">
+    <div style="font-size:2.2rem">{{ rt.icon }}</div>
+    <div style="font-family:'Cinzel',serif;color:var(--gold-light);margin:0.3rem 0">{{ rt.name }}</div>
+    <div style="font-size:0.78rem;opacity:0.75;margin-bottom:0.7rem">{{ rt.desc }}</div>
+    {% if opt == 'incudine' %}
+    <select name="stat_choice" style="width:100%;margin-bottom:0.6rem">
+      {% for io in incudine_options %}<option value="{{ io.stat }}">{{ io.label }}</option>{% endfor %}
+    </select>
+    {% endif %}
+    <button type="submit" class="btn" style="width:100%">Vai</button>
+  </form>
+  {% endfor %}
+</div>
+{% endblock %}

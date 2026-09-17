@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block content %}
+{% include "_status.html" %}
+<div class="combat-log">
+  {% for line in log %}<div>{{ line }}</div>{% endfor %}
+</div>
+<div style="text-align:center"><a href="/room" class="btn">Prosegui →</a></div>
+{% endblock %}

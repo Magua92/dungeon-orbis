@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+{% set c = run.combat %}
+<h2 style="text-align:center">{% if is_boss %}👑 Il Miniboss{% else %}⚔️ Combattimento{% endif %} — Round {{ c.round }}</h2>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem;align-items:start;margin-bottom:1rem">
+  {% include "_status.html" %}
+  <div class="panel-box">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+      <strong>{{ c.icon }} {{ c.name }}</strong>
+      {% if c.fear_chance > 0 %}<span style="font-size:0.65rem;background:#4a2a7a55;border:1px solid var(--timore-light);color:var(--timore-light);padding:0.1rem 0.4rem;border-radius:4px">👁️ Può colpire la Timore</span>{% endif %}
+    </div>
+    <div class="bar-label"><span>PV Nemico</span><span>{{ c.enemy_pv }} / {{ c.enemy_pv_max }}</span></div>
+    <div class="bar-track"><div class="bar-fill enemy-pv" style="width:{{ (c.enemy_pv / c.enemy_pv_max * 100) | round | int if c.enemy_pv > 0 else 0 }}%"></div></div>
+  </div>
+</div>
+
+<div class="combat-log">
+  {% for line in run.log %}<div>{{ line }}</div>{% endfor %}
+</div>
+
+<div style="font-family:'Cinzel',serif;font-size:0.85rem;color:var(--gold-light);margin-bottom:0.5rem">Scegli la tua azione:</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:0.6rem">
+  {% for a in actions %}
+  <form method="post" action="/combat/act">
+    <input type="hidden" name="action_key" value="{{ a.key }}">
+    <button type="submit" class="btn" style="width:100%;text-align:left;border-left:3px solid {% if a.type=='danno' %}#a03030{% elif a.type=='supporto' %}#3a7a5a{% else %}var(--gold-light){% endif %}">
+      {{ a.name }}
+    </button>
+  </form>
+  {% endfor %}
+</div>
+{% endblock %}

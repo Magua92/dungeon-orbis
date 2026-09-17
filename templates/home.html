@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 style="text-align:center">⚜ La Spedizione ⚜</h1>
+<p style="text-align:center;opacity:0.75;font-style:italic">Un dungeon roguelite per i personaggi di Orbis Terrarum.</p>
+<div class="panel-box" style="max-width:420px;margin:0 auto">
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  <form method="post">
+    <div style="margin-bottom:0.7rem">
+      <label>Fazione<br><input type="text" name="faction" required style="width:100%"></label>
+    </div>
+    <div style="margin-bottom:1rem">
+      <label>Nome del personaggio<br><input type="text" name="name" required style="width:100%"></label>
+    </div>
+    <button type="submit" class="btn" style="width:100%">Entra nella Spedizione →</button>
+  </form>
+</div>
+<div class="footer-note">Usa esattamente lo stesso nome del personaggio registrato nel Master Panel.</div>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 style="text-align:center">Prima Spedizione</h1>
+<p style="text-align:center;opacity:0.8">Scegli la classe di questo personaggio — dovrebbe corrispondere al suo ruolo nel Master Panel.</p>
+{% if error %}<div class="error" style="text-align:center">{{ error }}</div>{% endif %}
+<form method="post">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.8rem;margin-bottom:1.2rem">
+    {% for cname, cdata in classes.items() %}
+    <label class="panel-box" style="cursor:pointer;display:block">
+      <input type="radio" name="char_class" value="{{ cname }}" required style="margin-right:0.4rem">
+      <strong>{{ cdata.icon }} {{ cname }}</strong>
+      <div style="font-size:0.75rem;opacity:0.7;margin-top:0.4rem">{{ cdata.abilities[0].name }}: {{ cdata.abilities[0].desc }}</div>
+    </label>
+    {% endfor %}
+  </div>
+  <div style="text-align:center"><button type="submit" class="btn">Confermo la classe →</button></div>
+</form>
+{% endblock %}

@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 style="text-align:center">⏳ Spedizione già affrontata</h1>
+<div class="panel-box" style="text-align:center">
+  <p>{{ name }} ({{ faction }}) ha già affrontato una spedizione in questo ciclo.</p>
+  <p style="opacity:0.75;font-size:0.9rem">Il Master sbloccherà una nuova spedizione al prossimo turno.</p>
+</div>
+<div style="text-align:center"><a href="/" class="btn">← Torna all'inizio</a></div>
+{% endblock %}

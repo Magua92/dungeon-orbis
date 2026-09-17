@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 style="text-align:center">🗺️ Preparazione della Spedizione</h1>
+<div class="panel-box">
+  <h3>{{ name }} — {{ char_class }} · Livello {{ level }} ({{ xp }} PE)</h3>
+  <div style="font-size:0.8rem;opacity:0.8">
+    Abilità sbloccate: {% for a in abilities %}{{ a.name }}{% if not loop.last %}, {% endif %}{% endfor %}
+  </div>
+</div>
+
+<form method="post" action="/start_run" id="prepare-form">
+  <input type="hidden" name="faction" value="{{ faction }}">
+  <input type="hidden" name="name" value="{{ name }}">
+
+  <div class="panel-box">
+    <h3>🪖 Scegli il Seguito (massimo {{ max_pick }})</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0.6rem">
+      {% for key, e in entourage_types.items() %}
+      <label style="border:1px solid var(--border);border-radius:8px;padding:0.6rem;cursor:pointer;display:block">
+        <input type="checkbox" name="entourage" value="{{ key }}" class="entourage-check">
+        <strong>{{ e.icon }} {{ e.name }}</strong>
+        <div style="font-size:0.72rem;opacity:0.7;margin-top:0.3rem">{{ e.desc }}</div>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="panel-box">
+    <h3>🎽 Equipaggiamento posseduto</h3>
+    {% if not owned %}
+      <div style="opacity:0.7;font-size:0.85rem">Non possiedi ancora nessun oggetto — gli slot resteranno vuoti per questa spedizione. Gli oggetti si trovano affrontando boss e miniboss.</div>
+    {% else %}
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0.8rem">
+        <div>
+          <label>Slot Arma<br>
+            <select name="slot_arma" style="width:100%">
+              <option value="">— vuoto —</option>
+              {% for o in owned %}{% if items[o.item_id].slot == 'arma' %}
+              <option value="{{ o.item_id }}">{{ items[o.item_id].name }}</option>
+              {% endif %}{% endfor %}
+            </select>
+          </label>
+        </div>
+        <div>
+          <label>Slot Armatura<br>
+            <select name="slot_armatura" style="width:100%">
+              <option value="">— vuoto —</option>
+              {% for o in owned %}{% if items[o.item_id].slot == 'armatura' %}
+              <option value="{{ o.item_id }}">{{ items[o.item_id].name }}</option>
+              {% endif %}{% endfor %}
+            </select>
+          </label>
+        </div>
+        <div>
+          <label>Slot Jolly (arma o armatura)<br>
+            <select name="slot_jolly" style="width:100%">
+              <option value="">— vuoto —</option>
+              {% for o in owned %}
+              <option value="{{ o.item_id }}">{{ items[o.item_id].name }} ({{ items[o.item_id].slot }})</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+
+  <div id="entourage-error" class="error" style="display:none;text-align:center">Puoi scegliere al massimo {{ max_pick }} membri del Seguito.</div>
+  <div style="text-align:center"><button type="submit" class="btn">Parti per la spedizione →</button></div>
+</form>
+
+<script>
+document.querySelectorAll('.entourage-check').forEach(function(cb) {
+  cb.addEventListener('change', function() {
+    var checked = document.querySelectorAll('.entourage-check:checked');
+    var err = document.getElementById('entourage-error');
+    if (checked.length > {{ max_pick }}) {
+      this.checked = false;
+      err.style.display = 'block';
+    } else {
+      err.style.display = 'none';
+    }
+  });
+});
+</script>
+{% endblock %}

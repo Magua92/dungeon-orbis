@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 style="text-align:center">{{ result_labels.get(run.result, run.result) }}</h1>
+<div class="panel-box">
+  <div>Stanze superate: <strong>{{ run.room_index }}/5</strong></div>
+  <div>Esperienza guadagnata: <strong>{{ xp_gained }} PE</strong></div>
+  <div>Bottino portato a casa:
+    {% if loot %}
+      {% for k, v in loot.items() %}{{ v }} {{ k }}{% if not loop.last %}, {% endif %}{% endfor %}
+    {% else %}<em>nessuno</em>{% endif %}
+  </div>
+  {% if drop_names %}
+  <div style="margin-top:0.4rem">Oggetti trovati: <strong>{{ drop_names | join(', ') }}</strong></div>
+  {% endif %}
+</div>
+
+<div class="panel-box">
+  <h3>Riepilogo (mandato anche su Discord, se configurato)</h3>
+  <pre style="white-space:pre-wrap;font-family:'Crimson Text',serif;font-size:0.85rem">{{ summary_text }}</pre>
+</div>
+
+<div style="text-align:center"><a href="/" class="btn">← Torna all'inizio</a></div>
+{% endblock %}

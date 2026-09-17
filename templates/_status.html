@@ -1,0 +1,24 @@
+{% set l = run.leader %}
+<div class="panel-box">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+    <strong>{{ run.name }}</strong>
+    <span style="font-size:0.8rem;opacity:0.75">Liv. {{ run.level }} — Stanza {{ run.room_index if run.room_index <= 5 else 5 }}/5</span>
+  </div>
+  <div class="bar-label"><span>❤️ Vita</span><span>{{ l.pv }} / {{ l.pv_max }}</span></div>
+  <div class="bar-track"><div class="bar-fill pv" style="width:{{ (l.pv / l.pv_max * 100) | round | int }}%"></div></div>
+  <div class="bar-label" style="margin-top:0.4rem"><span>😰 Timore</span><span>{{ l.timore }} / {{ l.timore_max }}</span></div>
+  <div class="bar-track"><div class="bar-fill timore" style="width:{{ (l.timore / l.timore_max * 100) | round | int }}%"></div></div>
+  <div style="display:flex;gap:0.6rem;margin-top:0.5rem;flex-wrap:wrap;font-size:0.75rem">
+    <span>🛡️ Armatura: {{ l.armor + run.temp_buffs.armor }}</span>
+    <span>🧠 Res. Mentale: {{ l.mres + run.temp_buffs.mres }}</span>
+    <span>💰 Oro: {{ run.treasure.oro }}</span>
+  </div>
+  <div style="display:flex;gap:0.4rem;margin-top:0.5rem;flex-wrap:wrap">
+    {% for m in run.seguito %}
+    <span title="{{ m.type }}" style="width:30px;height:30px;border-radius:50%;border:1px solid var(--border);background:#0f0c0688;display:flex;align-items:center;justify-content:center;font-size:0.85rem;{% if not m.alive %}opacity:0.25;filter:grayscale(1);border-style:dashed;{% endif %}">
+      {{ {'fante':'⚔️','arciere':'🏹','cavaliere':'🐎','purificatore':'✨','guardiano':'🪨','martello':'🔨','mercenario':'💰','convertito':'🤝'}.get(m.type, '❔') }}
+    </span>
+    {% endfor %}
+    {% if not run.seguito %}<span style="opacity:0.5;font-size:0.75rem">Nessun Seguito</span>{% endif %}
+  </div>
+</div>
