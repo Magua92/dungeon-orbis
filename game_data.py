@@ -82,23 +82,58 @@ XP_PER_LEVEL = 150  # livello = 1 + xp // XP_PER_LEVEL (fino a livello massimo)
 MAX_LEVEL = 10
 
 # ─── STATISTICHE BASE DEL LEADER ─────────────────────────────────────────────
-BASE_PV = 20
-BASE_TIMORE = 20
+BASE_PV = 28
+BASE_TIMORE = 28
 BASE_ARMOR = 0
 BASE_MRES = 0
 BASE_DMG_MIN, BASE_DMG_MAX = 3, 5
 
-# ─── NEMICI PER STANZA (1-5) E MINIBOSS ─────────────────────────────────────
-ENEMY_TIERS = {
-    1: {"pv": 8,  "dmg": (2, 4), "fear_chance": 0.0,  "fear_dmg": (0, 0), "pool": [("Predone Solitario", "🗡️"), ("Cane Selvatico", "🐺")]},
-    2: {"pv": 10, "dmg": (3, 4), "fear_chance": 0.0,  "fear_dmg": (0, 0), "pool": [("Sciacallo delle Rovine", "🦴"), ("Predone Armato", "🗡️")]},
-    3: {"pv": 12, "dmg": (3, 5), "fear_chance": 0.20, "fear_dmg": (3, 5), "pool": [("Ombra Vagante", "👻"), ("Bandito Esperto", "🗡️")]},
-    4: {"pv": 14, "dmg": (4, 6), "fear_chance": 0.35, "fear_dmg": (4, 6), "pool": [("Spettro del Confine", "👹"), ("Fauna Corrotta", "🐗")]},
-    5: {"pv": 16, "dmg": (4, 7), "fear_chance": 0.50, "fear_dmg": (5, 7), "pool": [("Cavaliere Caduto", "💀"), ("Orrore Nebbioso", "👁️")]},
+# ─── NEMICI PER STANZA (1..N, formula) E MINIBOSS ───────────────────────────
+# Pool ampi per varieta': ogni combattimento sceglie a caso un nome dal pool del proprio
+# livello di difficolta'. Le statistiche invece sono calcolate con una formula (get_enemy_tier),
+# cosi' funzionano per qualunque numero di stanze senza dover riscrivere una tabella a mano.
+ENEMY_POOLS = {
+    1: [("Goblin Razziatore", "👺"), ("Cane Selvatico", "🐺"), ("Predone Solitario", "🗡️"),
+        ("Ratto Colossale", "🐀"), ("Corvo Malato", "🐦")],
+    2: [("Orco Sbandato", "👹"), ("Sciacallo delle Rovine", "🦴"), ("Predone Armato", "🗡️"),
+        ("Goblin Sciamano", "👺"), ("Cinghiale Furioso", "🐗")],
+    3: [("Ombra Vagante", "👻"), ("Bandito Esperto", "🗡️"), ("Orco Guerriero", "👹"),
+        ("Troll delle Paludi", "🧌"), ("Nano Spergiuro", "🪓")],
+    4: [("Spettro del Confine", "👹"), ("Fauna Corrotta", "🐗"), ("Draugr Risvegliato", "💀"),
+        ("Purificatore Eretico", "✨"), ("Troll da Guerra", "🧌")],
+    5: [("Cavaliere Caduto", "💀"), ("Orrore Nebbioso", "👁️"), ("Colosso di Pietra", "🗿"),
+        ("Orco Ancestrale", "👹"), ("Nano Spergiuro Anziano", "🪓")],
+    6: [("Draugr Ancestrale", "💀"), ("Purificatore Eretico Superiore", "✨"), ("Colosso Runico", "🗿"),
+        ("Troll delle Cime", "🧌"), ("Ombra Ancestrale", "👻")],
+    7: [("Colosso di Guerra", "🗿"), ("Draugr Signore", "💀"), ("Orco Sovrano", "👹"),
+        ("Purificatore Eretico Supremo", "✨"), ("Nano Spergiuro Maledetto", "🪓")],
 }
-BOSS_TIER = {"pv": 35, "dmg": (6, 10), "fear_chance": 0.50, "fear_dmg": (6, 9), "pool": [("Signore delle Rovine", "👑")]}
+BOSS_POOL = [("Il Signore delle Rovine", "👑"), ("Il Colosso Corrotto", "🗿"),
+             ("Il Re-Ombra", "👻"), ("Lo Spergiuro Eterno", "🪓")]
 
-ROOMS_PER_RUN = 5
+
+def get_enemy_tier(n):
+    """Statistiche del nemico per la stanza n (1-based), calcolate con una formula cosi'
+    da poter cambiare ROOMS_PER_RUN senza dover riscrivere una tabella a mano. Il pool dei
+    nomi usa il tier piu' alto disponibile se n supera quelli definiti in ENEMY_POOLS."""
+    pool = ENEMY_POOLS.get(n, ENEMY_POOLS[max(ENEMY_POOLS.keys())])
+    pv = 8 + 2 * (n - 1)
+    dmg_min = 2 + (n - 1) // 3
+    dmg_max = 4 + (n - 1) // 2
+    fear_chance = max(0.0, min(0.6, (n - 2) * 0.12))
+    fear_dmg = (dmg_min + 1, dmg_max + 1) if fear_chance > 0 else (0, 0)
+    return {"pv": pv, "dmg": (dmg_min, dmg_max), "fear_chance": fear_chance, "fear_dmg": fear_dmg, "pool": pool}
+
+
+def get_boss_tier(rooms_per_run):
+    """Il miniboss scala in base al numero di stanze della run (piu' stanze = nemico finale
+    piu' duro), sempre circa 1.75x le PV dell'ultima stanza normale."""
+    last = get_enemy_tier(rooms_per_run)
+    pv = int(last["pv"] * 1.75)
+    dmg = (last["dmg"][0] + 2, last["dmg"][1] + 3)
+    return {"pv": pv, "dmg": dmg, "fear_chance": 0.5, "fear_dmg": (dmg[0], dmg[1]), "pool": BOSS_POOL}
+
+ROOMS_PER_RUN = 7
 
 # ─── TIPI DI STANZA ───────────────────────────────────────────────────────────
 ROOM_TYPES = {
@@ -121,6 +156,8 @@ INCUDINE_OPTIONS = [
 # ─── LOOT (stanze di battaglia normali e miniboss) ──────────────────────────
 NORMAL_LOOT_AMOUNT = (2, 4)
 BOSS_LOOT_AMOUNT = (4, 8)
+GUARANTEED_GOLD_NORMAL = 1
+GUARANTEED_GOLD_BOSS = 3
 NORMAL_ITEM_DROP_CHANCE = 0.05
 BOSS_ITEM_DROP_CHANCE = 0.65
 # pesi di rarita' per i due contesti di drop (normal vs boss)

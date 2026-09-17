@@ -171,8 +171,8 @@ def _seguito_absorb(run, incoming_dmg):
 
 # ─── COMBATTIMENTO ────────────────────────────────────────────────────────
 def start_combat(run, tier):
-    """tier: 1..5 per stanze normali, 'boss' per il miniboss."""
-    data = gd.BOSS_TIER if tier == "boss" else gd.ENEMY_TIERS[tier]
+    """tier: 1..N per stanze normali, 'boss' per il miniboss."""
+    data = gd.get_boss_tier(gd.ROOMS_PER_RUN) if tier == "boss" else gd.get_enemy_tier(tier)
     name, icon = random.choice(data["pool"])
     run["combat"] = {
         "tier": tier, "name": name, "icon": icon,
@@ -400,6 +400,11 @@ def roll_loot(run, is_boss):
         amount = int(amount * 1.5)
     run["treasure"][resource] = run["treasure"].get(resource, 0) + amount
     log = ["Bottino: +%d %s." % (amount, resource)]
+
+    guaranteed_gold = gd.GUARANTEED_GOLD_BOSS if is_boss else gd.GUARANTEED_GOLD_NORMAL
+    if resource != "oro":
+        run["treasure"]["oro"] = run["treasure"].get("oro", 0) + guaranteed_gold
+        log.append("Recuperi anche %d Oro dalle spoglie del nemico." % guaranteed_gold)
 
     item_id = None
     drop_chance = gd.BOSS_ITEM_DROP_CHANCE if is_boss else gd.NORMAL_ITEM_DROP_CHANCE
