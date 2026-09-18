@@ -28,56 +28,71 @@ CLASSES = {
     "Generale": {
         "icon": "⚔️",
         "abilities": [
-            {"key": "carica",          "lvl": 1,  "name": "Carica",              "type": "danno",    "once": True,  "desc": "Un attacco molto potente, una volta a spedizione."},
-            {"key": "grido_di_guerra", "lvl": 3,  "name": "Grido di Guerra",      "type": "supporto", "once": False, "desc": "Il Seguito agisce con più efficacia per 2 stanze."},
-            {"key": "colpo_decisivo",  "lvl": 5,  "name": "Colpo Decisivo",       "type": "danno",    "once": False, "desc": "50% di possibilità di infliggere danno doppio."},
-            {"key": "resistenza",      "lvl": 7,  "name": "Resistenza",           "type": "passiva",  "once": False, "desc": "Dopo il primo colpo fisico subito, +2 Armatura per il resto della run."},
-            {"key": "ultima_resistenza","lvl": 10,"name": "Ultima Resistenza",    "type": "passiva",  "once": True,  "desc": "Se dovresti cadere, sopravvivi una volta con 1 Vita e contrattacchi pesantemente."},
+            {"key": "martellata",              "lvl": 1, "name": "Martellata",                   "type": "danno",    "cd": 5, "desc": "3-5 danni; 50% di stordire il nemico per 1-2 turni."},
+            {"key": "formazione_difensiva",    "lvl": 1, "name": "Formazione Difensiva",          "type": "supporto", "cd": 4, "desc": "+1 Armatura fino a fine combattimento; il prossimo colpo subito fa 3 danni in meno."},
+            {"key": "doppio_colpo",            "lvl": 1, "name": "Doppio Colpo",                  "type": "danno",    "cd": 3, "desc": "Esegue due attacchi in un solo turno."},
+            {"key": "vita_al_fronte",          "lvl": 3, "name": "Vita al Fronte",                "type": "supporto", "cd": 4, "desc": "Cura 1/4 della Vita massima."},
+            {"key": "grido_di_guerra",         "lvl": 5, "name": "Grido di Guerra",                "type": "supporto", "cd": 4, "desc": "Non attacchi questo turno; +1 Danno fino a fine combattimento e il prossimo attacco infligge danno doppio."},
+            {"key": "veterano_mille_battaglie","lvl": 7, "name": "Veterano di Mille Battaglie",    "type": "passiva",  "desc": "Sempre attiva: +2 Armatura e +2 Resistenza Mentale."},
+            {"key": "fine_stratega",           "lvl": 9, "name": "Fine Stratega",                  "type": "supporto", "max_uses": 3, "desc": "Risana tutto il Seguito caduto e ottieni +1 casuale a Danno, Armatura o Resistenza Mentale (fino a 3 volte a run)."},
+            {"key": "manovra_a_tenaglia",      "lvl": 10,"name": "Manovra a Tenaglia",             "type": "danno",    "once": True, "desc": "Sacrifichi tutto il Seguito rimasto: 8-10 danni al nemico per ogni truppa sacrificata."},
         ],
     },
     "Mago": {
         "icon": "✨",
         "abilities": [
-            {"key": "colpo_arcano",       "lvl": 1,  "name": "Colpo Arcano",        "type": "danno",    "once": False, "desc": "Danno che ignora parte delle difese del nemico."},
-            {"key": "sigillo",             "lvl": 3,  "name": "Sigillo",              "type": "supporto", "once": False, "desc": "Indebolisce il prossimo attacco del nemico."},
-            {"key": "rigenerazione_arcana","lvl": 5,  "name": "Rigenerazione Arcana", "type": "supporto", "once": False, "desc": "Recupera immediatamente un po' di Vita."},
-            {"key": "nebbia_illusoria",    "lvl": 7,  "name": "Nebbia Illusoria",     "type": "supporto", "once": True,  "desc": "Sparisci nella nebbia, evitando il combattimento in corso."},
-            {"key": "esplosione_elementale","lvl": 10,"name": "Esplosione Elementale","type": "danno",   "once": True,  "desc": "Danno pesante, specialmente efficace contro il miniboss."},
+            {"key": "colpo_arcano",     "lvl": 1,  "name": "Colpo Arcano",     "type": "danno",    "cd": 2, "desc": "4-6 danni; ogni utilizzo aumenta permanentemente di 1 il danno dei prossimi Colpi Arcani, per la durata del combattimento."},
+            {"key": "scudo_magico",     "lvl": 1,  "name": "Scudo Magico",     "type": "supporto", "cd": 4, "desc": "Uno scudo assorbe i prossimi 10 danni fisici e i prossimi 12 danni alla Timore, finche' dura o finche' il combattimento finisce."},
+            {"key": "raggio_congelante","lvl": 1,  "name": "Raggio Congelante","type": "danno",    "cd": 3, "desc": "5-7 danni; 50% di rallentare il nemico, che agisce per ultimo per 2 turni."},
+            {"key": "parola_guaritrice","lvl": 3,  "name": "Parola Guaritrice","type": "supporto", "cd": 4, "desc": "Cura 5-10 Vita e 6-12 Timore."},
+            {"key": "potenziale_arcano","lvl": 5,  "name": "Potenziale Arcano","type": "passiva",  "desc": "Sempre attiva: +2 danno permanente al Colpo Arcano per tutta la run, +1 ulteriore per ogni Gemma raccolta."},
+            {"key": "palla_di_fuoco",   "lvl": 7,  "name": "Palla di Fuoco",   "type": "danno",    "cd": 4, "desc": "7-12 danni; il nemico brucia per altri 2 danni nei 2 turni successivi."},
+            {"key": "copie_illusorie",  "lvl": 9,  "name": "Copie Illusorie",  "type": "supporto", "cd": 5, "desc": "Per 3 turni, 70% di possibilita' di evitare completamente ogni colpo nemico."},
+            {"key": "protezione_arcana","lvl": 10, "name": "Protezione Arcana","type": "passiva",  "once": True, "desc": "Sempre attiva: +1 Armatura, +3 Resistenza Mentale. La prima volta che Vita o Timore arrivano a 0, li recuperi entrambi a 1/3 del massimo invece di cadere (una volta a run)."},
         ],
     },
     "Diplomatico": {
         "icon": "🕊️",
         "abilities": [
-            {"key": "negoziazione",       "lvl": 1,  "name": "Negoziazione",        "type": "supporto", "once": True,  "desc": "Evita del tutto un combattimento, se usata al primo round."},
-            {"key": "sguardo_autorevole", "lvl": 3,  "name": "Sguardo Autorevole",  "type": "passiva",  "once": False, "desc": "Incontri meno combattimenti nelle stanze successive."},
-            {"key": "parola_ispirata",    "lvl": 5,  "name": "Parola Ispirata",     "type": "passiva",  "once": False, "desc": "Bottini leggermente più generosi."},
-            {"key": "patto_d_emergenza",  "lvl": 7,  "name": "Patto d'Emergenza",   "type": "supporto", "once": True,  "desc": "Spendi tutto il tesoro raccolto per guarire Vita e Timore."},
-            {"key": "trattato_di_sangue", "lvl": 10, "name": "Trattato di Sangue",  "type": "danno",    "once": True,  "desc": "Se questo colpo abbatte il nemico, si unisce al tuo Seguito per il resto della run."},
+            {"key": "orazione_esperta", "lvl": 1,  "name": "Orazione Esperta",    "type": "danno",    "cd": 2, "desc": "3-5 danni alla Timore del nemico; 50% di rianimare una truppa caduta del tuo Seguito."},
+            {"key": "littori_sacri",    "lvl": 1,  "name": "Littori Sacri",       "type": "danno",    "cd": 3, "desc": "5-8 danni fisici e 2-3 danni alla Timore del nemico; una truppa a caso del tuo Seguito viene sacrificata."},
+            {"key": "proteggimi",       "lvl": 1,  "name": "Proteggimi!",         "type": "supporto", "cd": 4, "desc": "Ottieni uno scudo di 4 Vita e 2 Timore per ogni truppa ancora attiva, fino a fine combattimento."},
+            {"key": "bastione_della_fede","lvl": 3,"name": "Bastione della Fede", "type": "passiva",  "desc": "Sempre attiva: recuperi 2 Vita a turno, cumulabile col Purificatore del Seguito (4 Vita a turno insieme)."},
+            {"key": "omelia_della_potenza","lvl": 5,"name": "Omelia della Potenza","type": "danno",   "cd": 4, "desc": "4-6 danni alla Timore del nemico; 30% di critico che raddoppia il danno."},
+            {"key": "omelia_della_salvezza","lvl": 7,"name": "Omelia della Salvezza","type": "passiva","once": True, "desc": "Sempre attiva: la prima volta che dovresti cadere a 0 Vita, ignori il danno e torni a 1 Vita (una volta a run)."},
+            {"key": "messa_salvifica",  "lvl": 9,  "name": "Messa Salvifica",     "type": "supporto", "cd": 5, "desc": "Tutte le truppe cadute del Seguito vengono rianimate. Equipaggiandola, puoi portare 1 truppa in più nel Seguito.", "grants_extra_entourage": 1},
+            {"key": "pontifex_maximus", "lvl": 10, "name": "Pontifex Maximus",    "type": "supporto", "cd": 8, "desc": "Azzera il cooldown di tutte le altre tue abilita' e ottieni +2 Armatura e +2 Resistenza Mentale fino a fine combattimento."},
         ],
     },
     "Esploratore": {
         "icon": "🧭",
         "abilities": [
-            {"key": "fiuto",              "lvl": 1,  "name": "Fiuto",               "type": "passiva",  "once": False, "desc": "Riveli il nemico prima di entrare in battaglia."},
-            {"key": "passo_leggero",      "lvl": 3,  "name": "Passo Leggero",       "type": "passiva",  "once": False, "desc": "Il primo colpo fisico di ogni combattimento viene schivato."},
-            {"key": "occhio_di_falco",    "lvl": 5,  "name": "Occhio di Falco",     "type": "passiva",  "once": False, "desc": "Bottini più abbondanti."},
-            {"key": "scorciatoia",        "lvl": 7,  "name": "Scorciatoia",         "type": "supporto", "once": True,  "desc": "Salta la stanza corrente senza rischi, una volta a run."},
-            {"key": "maestro_dei_sentieri","lvl": 10,"name": "Maestro dei Sentieri","type": "passiva",  "once": False, "desc": "Vedi le statistiche del miniboss prima di affrontarlo."},
+            {"key": "strumenti_del_mestiere","lvl": 1, "name": "Strumenti del Mestiere","type": "passiva", "desc": "Sempre attiva: scegli liberamente 3 oggetti (solo rarita' base) dal catalogo, senza doverli possedere."},
+            {"key": "colpo_di_lazo",        "lvl": 1,  "name": "Colpo di Lazo",         "type": "danno",    "cd": 2, "desc": "4-7 danni fisici."},
+            {"key": "agilita_felina",       "lvl": 1,  "name": "Agilità Felina",        "type": "passiva",  "desc": "Sempre attiva: 20% di possibilita' di evitare completamente ogni colpo."},
+            {"key": "parole_di_scherno",    "lvl": 3,  "name": "Parole di Scherno",     "type": "danno",    "cd": 4, "desc": "3-5 danni alla Timore del nemico; il suo danno fisico e' ridotto di 3 per i 2 turni successivi."},
+            {"key": "picconata_fortunata",  "lvl": 5,  "name": "Picconata Fortunata",   "type": "danno",    "cd": 3, "desc": "6-9 danni fisici; 15% di critico che raddoppia il danno."},
+            {"key": "indovinelli_oscurita", "lvl": 7,  "name": "Indovinelli nell'Oscurità","type": "danno", "cd": 5, "desc": "3 tiri al 50%: ogni successo infligge 8 danni al nemico, ogni fallimento te ne infligge 4 diretti."},
+            {"key": "mappatore_esperto",    "lvl": 9,  "name": "Mappatore Esperto",     "type": "passiva",  "desc": "Sempre attiva: vedi in anticipo le stanze successive, e raddogli le risorse ottenute a fine combattimento."},
+            {"key": "vie_segrete",          "lvl": 10, "name": "Vie Segrete",           "type": "supporto", "once": True, "room_action": True, "desc": "Una volta a run, salta la stanza corrente (non il miniboss) senza affrontarla."},
         ],
     },
     "Amministratore": {
         "icon": "📜",
         "abilities": [
-            {"key": "contabile",   "lvl": 1,  "name": "Contabile",     "type": "passiva", "once": False, "desc": "Incudine e Sacco di Monete costano 1 Oro in meno."},
-            {"key": "scorta_extra","lvl": 3,  "name": "Scorta Extra",  "type": "passiva", "once": False, "desc": "Inizi ogni spedizione con Oro bonus."},
-            {"key": "razionamento","lvl": 5,  "name": "Razionamento",  "type": "passiva", "once": False, "desc": "Il Seguito ha più probabilità di sopravvivere quando assorbe un colpo."},
-            {"key": "investimento","lvl": 7,  "name": "Investimento",  "type": "passiva", "once": False, "desc": "I potenziamenti dell'Incudine sono più efficaci."},
-            {"key": "tesoriere",   "lvl": 10, "name": "Tesoriere",     "type": "passiva", "once": False, "desc": "L'Oro non speso si converte in Esperienza extra a fine run."},
+            {"key": "esperto_saccheggiatore","lvl": 1, "name": "Esperto Saccheggiatore","type": "supporto", "cd": 3, "desc": "Trovi +5 unita' di una risorsa a caso tra Oro (60%), Legname (20%) e Pietra (20%)."},
+            {"key": "acuto_osservatore",     "lvl": 1, "name": "Acuto Osservatore",     "type": "supporto", "cd": 3, "desc": "Individui i punti debili del nemico: potenzia il prossimo utilizzo di Raffica Micidiale."},
+            {"key": "raffica_micidiale",     "lvl": 1, "name": "Raffica Micidiale",     "type": "danno",    "cd": 4, "desc": "3 colpi da 2 danni ciascuno; se potenziata da Acuto Osservatore, 3 colpi da 5-7 danni ciascuno."},
+            {"key": "ogni_uomo_ha_un_prezzo","lvl": 3, "name": "Ogni Uomo ha un Prezzo","type": "danno",    "cd": 2, "desc": "4-5 danni alla Timore del nemico."},
+            {"key": "azzardo_economico",     "lvl": 5, "name": "Azzardo Economico",     "type": "danno",    "cd": 4, "desc": "Spendi tutto il tuo Oro: infligge 2 danni alla Timore del nemico per ogni unita' di Oro speso."},
+            {"key": "cani_della_guerra",     "lvl": 7, "name": "Cani della Guerra",     "type": "supporto", "cd": 6, "desc": "Attiri 3 mercenari al tuo servizio, che se ne andranno alla fine di questo combattimento."},
+            {"key": "drago_della_finanza",   "lvl": 9, "name": "Drago della Finanza",   "type": "passiva",  "desc": "Sempre attiva: raddoppia tutti i guadagni ottenuti a fine combattimento."},
+            {"key": "bancarotta",            "lvl": 10,"name": "Bancarotta",            "type": "supporto", "once": True, "room_action": True, "desc": "Massimo 1 volta a run: abbandoni la spedizione illeso, portando con te tutte le risorse raccolte fino a questo momento."},
         ],
     },
 }
 
-LEVEL_UNLOCK_THRESHOLDS = [1, 3, 5, 7, 10]  # livelli a cui si sbloccano le 5 abilita', in ordine
+LEVEL_UNLOCK_THRESHOLDS = [1, 1, 1, 1, 10]  # le prime 4 abilita' sono disponibili da subito, la quinta (la piu' forte) resta un traguardo a lungo termine
 XP_PER_LEVEL = 150  # livello = 1 + xp // XP_PER_LEVEL (fino a livello massimo)
 MAX_LEVEL = 10
 
@@ -87,6 +102,32 @@ BASE_TIMORE = 28
 BASE_ARMOR = 0
 BASE_MRES = 0
 BASE_DMG_MIN, BASE_DMG_MAX = 3, 5
+
+# Statistiche base per classe: solo le classi gia' ridisegnate hanno una voce qui.
+# Le classi non ancora ridisegnate (in attesa del loro turno) usano i valori globali sopra,
+# senza crescita per livello (esattamente come si comportavano finora).
+CLASS_BASE_STATS = {
+    "Generale": {"pv": 28, "timore": 32},
+    "Mago": {"pv": 28, "timore": 28},
+    "Diplomatico": {"pv": 28, "timore": 26},
+    "Amministratore": {"pv": 26, "timore": 30},
+    "Esploratore": {"pv": 26, "timore": 34},
+}
+CLASS_LEVEL_GROWTH = {
+    "Generale": {"pv_per_level": 2, "timore_per_level": 1},
+    "Mago": {"pv_per_level": 1, "timore_per_level": 2},
+    "Diplomatico": {"pv_per_level": 2, "timore_per_level": 1},
+    "Amministratore": {"pv_per_level": 2, "timore_per_level": 1},
+    "Esploratore": {"pv_per_level": 2, "timore_per_level": 2},
+}
+# Range di danno del solo Attacco Fisico base, specifico per classe (fallback: BASE_DMG_MIN/MAX)
+CLASS_BASE_DMG = {
+    "Mago": (2, 3),
+    "Diplomatico": (2, 3),
+    "Amministratore": (2, 3),
+    "Esploratore": (1, 2),
+}
+ABILITY_LOADOUT_SIZE = 4  # quante abilita' (Attacco incluso) si possono avere equipaggiate insieme
 
 # ─── NEMICI PER STANZA (1..N, formula) E MINIBOSS ───────────────────────────
 # Pool ampi per varieta': ogni combattimento sceglie a caso un nome dal pool del proprio

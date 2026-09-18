@@ -85,10 +85,18 @@ def prepare():
     level = engine.level_from_xp(char["xp"])
     owned = db.get_owned_equipment(faction, name)
     abilities = engine.unlocked_abilities(char["class"], level)
+    uses_loadout = engine.uses_loadout(char["class"])
+    active_abilities = abilities
+    entourage_bonus_map = {a["key"]: a["grants_extra_entourage"] for a in abilities if a.get("grants_extra_entourage")}
+    has_strumenti = any(a["key"] == "strumenti_del_mestiere" for a in abilities)
+    owned_ids = {o["item_id"] for o in owned}
     return render_template(
         "prepare.html", faction=faction, name=name, char_class=char["class"], level=level,
         xp=char["xp"], entourage_types=gd.ENTOURAGE_TYPES, max_pick=gd.ENTOURAGE_MAX_PICK,
         owned=owned, items=gd.ITEMS, abilities=abilities, error=None,
+        uses_loadout=uses_loadout, active_abilities=active_abilities,
+        ability_loadout_size=gd.ABILITY_LOADOUT_SIZE, entourage_bonus_map=entourage_bonus_map,
+        has_strumenti=has_strumenti, owned_ids=owned_ids,
     )
 
 
@@ -101,21 +109,62 @@ def start_run():
         return redirect(url_for("home"))
     level = engine.level_from_xp(char["xp"])
 
+    equipped_abilities = None
+    entourage_bonus = 0
+    if engine.uses_loadout(char["class"]):
+        unlocked_full = engine.unlocked_abilities(char["class"], level)
+        unlocked_keys = {a["key"] for a in unlocked_full}
+        unlocked = [a["key"] for a in unlocked_full]
+        chosen = [k for k in request.form.getlist("abilities") if k in unlocked_keys]
+        equipped_abilities = chosen[: gd.ABILITY_LOADOUT_SIZE - 1] or unlocked[: gd.ABILITY_LOADOUT_SIZE - 1]
+        entourage_bonus = sum(a.get("grants_extra_entourage", 0) for a in unlocked_full if a["key"] in equipped_abilities)
+
     entourage = request.form.getlist("entourage")
-    entourage = [e for e in entourage if e in gd.ENTOURAGE_TYPES][: gd.ENTOURAGE_MAX_PICK]
+    entourage = [e for e in entourage if e in gd.ENTOURAGE_TYPES][: gd.ENTOURAGE_MAX_PICK + entourage_bonus]
 
     owned_ids = {e["item_id"] for e in db.get_owned_equipment(faction, name)}
+    has_strumenti = bool(equipped_abilities) and "strumenti_del_mestiere" in equipped_abilities
     slot_arma = request.form.get("slot_arma") or None
     slot_armatura = request.form.get("slot_armatura") or None
     slot_jolly = request.form.get("slot_jolly") or None
     equip_ids = []
     for item_id, expected_slot in ((slot_arma, "arma"), (slot_armatura, "armatura"), (slot_jolly, None)):
-        if item_id and item_id in owned_ids and item_id in gd.ITEMS:
-            if expected_slot is None or gd.ITEMS[item_id]["slot"] == expected_slot:
-                equip_ids.append(item_id)
+        if not item_id or item_id not in gd.ITEMS:
+            continue
+        consentito = item_id in owned_ids or (has_strumenti and gd.ITEMS[item_id]["rarity"] == "base")
+        if consentito and (expected_slot is None or gd.ITEMS[item_id]["slot"] == expected_slot):
+            equip_ids.append(item_id)
 
-    run = engine.new_run_state(faction, name, char["class"], level, entourage, equip_ids)
+    run = engine.new_run_state(faction, name, char["class"], level, entourage, equip_ids, equipped_abilities)
     session["run"] = run
+    return redirect(url_for("room"))
+
+
+@app.route("/room_action", methods=["POST"])
+def room_action():
+    run = _run()
+    if not run or run.get("combat"):
+        return redirect(url_for("room"))
+    ability_key = request.form.get("ability_key")
+    char_class = run["class"]
+    ability = next((a for a in gd.CLASSES[char_class]["abilities"]
+                     if a["key"] == ability_key and a.get("room_action")), None)
+    if not ability or ability_key not in run.get("equipped_abilities", []) or ability_key in run["used_once_abilities"]:
+        return redirect(url_for("room"))
+    run["used_once_abilities"].append(ability_key)
+
+    if ability_key == "bancarotta":
+        run["finished"] = True
+        run["result"] = "ritirata_bancarotta"
+        session["run"] = run
+        return redirect(url_for("run_end"))
+
+    if ability_key == "vie_segrete":
+        run["room_index"] += 1
+        run["log"] = ["Vie Segrete: eviti del tutto questa stanza, proseguendo per sentieri nascosti."]
+        session["run"] = run
+        return render_template("room_result.html", run=run, log=run["log"], room_finished=True)
+
     return redirect(url_for("room"))
 
 
@@ -129,12 +178,22 @@ def room():
     if run["room_index"] >= gd.ROOMS_PER_RUN:
         return redirect(url_for("miniboss"))
     options = run["rooms_plan"][run["room_index"]]
+
+    room_actions = [a for a in gd.CLASSES[run["class"]]["abilities"]
+                     if a.get("room_action") and a["key"] in run.get("equipped_abilities", [])
+                     and a["key"] not in run["used_once_abilities"]]
+
+    next_room_options = None
+    if "mappatore_esperto" in run.get("equipped_abilities", []) and run["room_index"] + 1 < gd.ROOMS_PER_RUN:
+        next_room_options = run["rooms_plan"][run["room_index"] + 1]
+
     return render_template("room.html", run=run, options=options, room_types=gd.ROOM_TYPES,
                             room_number=run["room_index"] + 1, total_rooms=gd.ROOMS_PER_RUN,
                             incudine_options=gd.INCUDINE_OPTIONS,
                             incudine_cost=engine.incudine_cost(run),
                             incudine_amount=engine.incudine_buff_amount(run),
-                            sacco_monete_cost=engine.sacco_monete_cost(run))
+                            sacco_monete_cost=engine.sacco_monete_cost(run),
+                            room_actions=room_actions, next_room_options=next_room_options)
 
 
 @app.route("/choose_room", methods=["POST"])
@@ -165,8 +224,6 @@ def choose_room():
 
     run["log"] = log
     run["room_index"] += 1
-    if run["temp_buffs"].get("grido_di_guerra_rooms", 0) > 0:
-        run["temp_buffs"]["grido_di_guerra_rooms"] -= 1
     session["run"] = run
     return render_template("room_result.html", run=run, log=log, room_finished=True)
 
@@ -195,6 +252,7 @@ def combat_act():
         return redirect(url_for("combat"))
 
     if esito == "vittoria":
+        engine.cleanup_temp_mercenaries(run)
         loot_log, item_id = engine.roll_loot(run, is_boss)
         run["log"] = run.get("log", []) + loot_log
         if item_id:
@@ -206,22 +264,23 @@ def combat_act():
             session["run"] = run
             return redirect(url_for("run_end"))
         run["room_index"] += 1
-        if run["temp_buffs"].get("grido_di_guerra_rooms", 0) > 0:
-            run["temp_buffs"]["grido_di_guerra_rooms"] -= 1
         session["run"] = run
         return render_template("room_result.html", run=run, log=run["log"], room_finished=True)
 
     if esito == "fuga":
+        engine.cleanup_temp_mercenaries(run)
         run["room_index"] += 1
         session["run"] = run
         return render_template("room_result.html", run=run, log=run.get("log", []), room_finished=True)
 
     if esito == "salta_stanza":
+        engine.cleanup_temp_mercenaries(run)
         run["room_index"] += 1
         session["run"] = run
         return render_template("room_result.html", run=run, log=run.get("log", []), room_finished=True)
 
     if esito in ("sconfitta_morte", "sconfitta_timore"):
+        engine.cleanup_temp_mercenaries(run)
         run["finished"] = True
         run["result"] = esito
         session["run"] = run
@@ -273,6 +332,7 @@ def run_end():
         "vittoria": "🏆 Vittoria completa",
         "sconfitta_timore": "😰 Ritirata per Timore",
         "sconfitta_morte": "💀 Sconfitta",
+        "ritirata_bancarotta": "💰 Ritirata (Bancarotta)",
     }
     loot_txt = ", ".join("%d %s" % (v, k) for k, v in loot.items()) if loot else "nessuno"
     drop_txt = (", oggetti trovati: " + ", ".join(drop_names)) if drop_names else ""
