@@ -17,6 +17,7 @@ except ImportError:
     requests = None
 
 app = Flask(__name__)
+app.jinja_env.globals["ROOMS_PER_RUN"] = gd.ROOMS_PER_RUN
 app.secret_key = os.environ.get("DUNGEON_SECRET_KEY", "cambia-questa-chiave-in-produzione")
 
 # Config: incolla qui l'URL del webhook Discord dedicato (o lascialo vuoto per disattivare l'invio)
@@ -233,7 +234,7 @@ def combat():
     run = _run()
     if not run or not run.get("combat"):
         return redirect(url_for("room"))
-    actions = engine.available_combat_actions(run)
+    actions = engine.all_combat_abilities(run)
     is_boss = run["combat"]["tier"] == "boss"
     return render_template("combat.html", run=run, actions=actions, is_boss=is_boss)
 
@@ -244,6 +245,9 @@ def combat_act():
     if not run or not run.get("combat"):
         return redirect(url_for("room"))
     action_key = request.form.get("action_key", "attacco_fisico")
+    available_keys = {a["key"] for a in engine.available_combat_actions(run)}
+    if action_key not in available_keys:
+        return redirect(url_for("combat"))
     is_boss = run["combat"]["tier"] == "boss"
     esito = engine.resolve_combat_round(run, action_key)
 
@@ -298,7 +302,7 @@ def miniboss():
     if not run.get("combat"):
         engine.start_combat(run, "boss")
         session["run"] = run
-    actions = engine.available_combat_actions(run)
+    actions = engine.all_combat_abilities(run)
     return render_template("combat.html", run=run, actions=actions, is_boss=True, is_miniboss_intro=True)
 
 

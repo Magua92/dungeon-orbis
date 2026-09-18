@@ -132,39 +132,45 @@ def _attacco_fisico_desc(char_class):
     return "%d-%d danni fisici%s." % (lo, hi, extra)
 
 
-def available_combat_actions(run):
-    """Ritorna la lista delle azioni selezionabili nel round corrente."""
+def all_combat_abilities(run):
+    """Ritorna TUTTE le abilita' attive equipaggiate, comprese quelle attualmente non
+    disponibili per cooldown o usi esauriti — con lo stato necessario a mostrarlo a schermo."""
     char_class = run["class"]
-    actions = [{"key": "attacco_fisico", "name": "Attacco Fisico", "type": "fisico",
-                "desc": _attacco_fisico_desc(char_class)}]
+    result = [{"key": "attacco_fisico", "name": "Attacco Fisico", "type": "fisico",
+               "desc": _attacco_fisico_desc(char_class), "available": True,
+               "cd_remaining": None, "max_cd": None, "uses_left": None, "max_uses": None}]
+
     abilities = unlocked_abilities(char_class, run["level"])
     ability_by_key = {a["key"]: a for a in abilities}
+    keys = run.get("equipped_abilities", []) if uses_loadout(char_class) else [a["key"] for a in abilities]
 
-    if uses_loadout(char_class):
-        for key in run.get("equipped_abilities", []):
-            a = ability_by_key.get(key)
-            if not a or a["type"] == "passiva":
-                continue
-            if a.get("once"):
-                if key in run["used_once_abilities"]:
-                    continue
-            elif "max_uses" in a:
-                if run["ability_use_counts"].get(key, 0) >= a["max_uses"]:
-                    continue
-            else:
-                if run["cooldowns"].get(key, 0) > 0:
-                    continue
-            actions.append({"key": a["key"], "name": a["name"], "type": a["type"], "desc": a["desc"]})
-        return actions
+    for key in keys:
+        a = ability_by_key.get(key)
+        if not a or a["type"] == "passiva":
+            continue
+        entry = {"key": a["key"], "name": a["name"], "type": a["type"], "desc": a["desc"],
+                 "cd_remaining": None, "max_cd": a.get("cd"), "uses_left": None, "max_uses": a.get("max_uses")}
+        if a.get("once"):
+            used = key in run["used_once_abilities"]
+            entry["available"] = not used
+            entry["max_uses"] = 1
+            entry["uses_left"] = 0 if used else 1
+        elif "max_uses" in a:
+            used_count = run["ability_use_counts"].get(key, 0)
+            entry["uses_left"] = a["max_uses"] - used_count
+            entry["available"] = entry["uses_left"] > 0
+        else:
+            remaining = run["cooldowns"].get(key, 0)
+            entry["cd_remaining"] = remaining
+            entry["available"] = remaining <= 0
+        result.append(entry)
+    return result
 
-    for a in abilities:
-        if a["type"] == "passiva":
-            continue
-        if a.get("once") and a["key"] in run["used_once_abilities"]:
-            continue
-        # negoziazione e nebbia_illusoria: fuggire dal combattimento, sempre selezionabili se non usate
-        actions.append({"key": a["key"], "name": a["name"], "type": a["type"], "desc": a["desc"]})
-    return actions
+
+def available_combat_actions(run):
+    """Ritorna solo le azioni davvero selezionabili in questo momento (usata per validare
+    l'azione scelta lato server)."""
+    return [a for a in all_combat_abilities(run) if a.get("available", True)]
 
 
 def has_ability(run, key):
