@@ -2,7 +2,7 @@
 <div class="panel-box">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
     <strong>{{ run.name }}</strong>
-    <span style="font-size:0.8rem;opacity:0.75">Liv. {{ run.level }} — Stanza {{ run.room_index if run.room_index <= 5 else 5 }}/5</span>
+    <span style="font-size:0.8rem;opacity:0.75">Liv. {{ run.level }} — Stanza {{ (run.room_index + 1) if run.room_index < ROOMS_PER_RUN else ROOMS_PER_RUN }}/{{ ROOMS_PER_RUN }}</span>
   </div>
   <div class="bar-label"><span>❤️ Vita</span><span>{{ l.pv }} / {{ l.pv_max }}</span></div>
   <div class="bar-track"><div class="bar-fill pv" style="width:{{ (l.pv / l.pv_max * 100) | round | int }}%"></div></div>

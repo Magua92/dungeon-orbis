@@ -2,7 +2,7 @@
 {% block content %}
 <h1 style="text-align:center">{{ result_labels.get(run.result, run.result) }}</h1>
 <div class="panel-box">
-  <div>Stanze superate: <strong>{{ run.room_index }}/5</strong></div>
+  <div>Stanze superate: <strong>{{ run.room_index }}/{{ ROOMS_PER_RUN }}</strong></div>
   <div>Esperienza guadagnata: <strong>{{ xp_gained }} PE</strong></div>
   <div>Bottino portato a casa:
     {% if loot %}

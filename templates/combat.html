@@ -24,13 +24,23 @@
 <div style="font-family:'Cinzel',serif;font-size:0.85rem;color:var(--gold-light);margin-bottom:0.5rem">Scegli la tua azione:</div>
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.6rem">
   {% for a in actions %}
+  {% if a.available %}
   <form method="post" action="/combat/act" title="{{ a.desc }}">
     <input type="hidden" name="action_key" value="{{ a.key }}">
     <button type="submit" class="btn" style="width:100%;text-align:left;border-left:3px solid {% if a.type=='danno' %}#a03030{% elif a.type=='supporto' %}#3a7a5a{% else %}var(--gold-light){% endif %}">
-      <div style="font-family:'Cinzel',serif">{{ a.name }}</div>
+      <div style="font-family:'Cinzel',serif">{{ a.name }}{% if a.max_cd %} <span style="font-size:0.65rem;opacity:0.6;font-family:'Crimson Text',serif">(CD {{ a.max_cd }})</span>{% endif %}{% if a.max_uses %} <span style="font-size:0.65rem;opacity:0.6;font-family:'Crimson Text',serif">({{ a.uses_left }}/{{ a.max_uses }} usi)</span>{% endif %}</div>
       <div style="font-size:0.68rem;opacity:0.75;font-family:'Crimson Text',serif;font-weight:normal;margin-top:0.2rem;white-space:normal">{{ a.desc }}</div>
     </button>
   </form>
+  {% else %}
+  <div class="btn" title="{{ a.desc }}" style="width:100%;text-align:left;border-left:3px solid #4a3d28;opacity:0.45;cursor:not-allowed;background:#0d0a06">
+    <div style="font-family:'Cinzel',serif">{{ a.name }}
+      {% if a.cd_remaining %}<span style="font-size:0.65rem;color:#e08a8a">— CD: {{ a.cd_remaining }} turno/i</span>
+      {% elif a.max_uses %}<span style="font-size:0.65rem;color:#e08a8a">— Usi esauriti ({{ a.uses_left }}/{{ a.max_uses }})</span>{% endif %}
+    </div>
+    <div style="font-size:0.68rem;opacity:0.75;font-family:'Crimson Text',serif;font-weight:normal;margin-top:0.2rem;white-space:normal">{{ a.desc }}</div>
+  </div>
+  {% endif %}
   {% endfor %}
 </div>
 {% endblock %}
