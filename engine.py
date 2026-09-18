@@ -124,10 +124,19 @@ def generate_rooms_plan():
 
 
 # ─── ABILITA' DISPONIBILI IN COMBATTIMENTO ───────────────────────────────
+def _attacco_fisico_desc(char_class):
+    lo, hi = gd.CLASS_BASE_DMG.get(char_class, (gd.BASE_DMG_MIN, gd.BASE_DMG_MAX))
+    extra = ""
+    if char_class == "Esploratore":
+        extra = "; guadagni +2 scudo fisico"
+    return "%d-%d danni fisici%s." % (lo, hi, extra)
+
+
 def available_combat_actions(run):
     """Ritorna la lista delle azioni selezionabili nel round corrente."""
-    actions = [{"key": "attacco_fisico", "name": "Attacco Fisico", "type": "fisico"}]
     char_class = run["class"]
+    actions = [{"key": "attacco_fisico", "name": "Attacco Fisico", "type": "fisico",
+                "desc": _attacco_fisico_desc(char_class)}]
     abilities = unlocked_abilities(char_class, run["level"])
     ability_by_key = {a["key"]: a for a in abilities}
 
@@ -145,7 +154,7 @@ def available_combat_actions(run):
             else:
                 if run["cooldowns"].get(key, 0) > 0:
                     continue
-            actions.append({"key": a["key"], "name": a["name"], "type": a["type"]})
+            actions.append({"key": a["key"], "name": a["name"], "type": a["type"], "desc": a["desc"]})
         return actions
 
     for a in abilities:
@@ -154,7 +163,7 @@ def available_combat_actions(run):
         if a.get("once") and a["key"] in run["used_once_abilities"]:
             continue
         # negoziazione e nebbia_illusoria: fuggire dal combattimento, sempre selezionabili se non usate
-        actions.append({"key": a["key"], "name": a["name"], "type": a["type"]})
+        actions.append({"key": a["key"], "name": a["name"], "type": a["type"], "desc": a["desc"]})
     return actions
 
 
@@ -350,7 +359,7 @@ def _apply_ability_action(run, ability_key):
         _set_cooldown(run, ability_key)
         combat["shield_physical_pool"] += 10
         combat["shield_timore_pool"] += 12
-        log.append("Scudo Magico: eretta una barriera che assorbira' i prossimi 10 danni fisici e 12 alla Timore.")
+        log.append("Scudo Magico: eretta una barriera che assorbira' i prossimi 10 danni fisici e 12 al Timore.")
         return 0, 0, log, False
 
     if ability_key == "raggio_congelante":
@@ -389,7 +398,7 @@ def _apply_ability_action(run, ability_key):
     if ability_key == "orazione_esperta":
         _set_cooldown(run, ability_key)
         timore_dmg = random.randint(3, 5)
-        log.append("Orazione Esperta: infliggi %d danni alla Timore del nemico." % timore_dmg)
+        log.append("Orazione Esperta: infliggi %d danni al Timore del nemico." % timore_dmg)
         caduti = [m for m in run["seguito"] if not m["alive"]]
         if caduti and random.random() < 0.5:
             scelto = random.choice(caduti)
@@ -404,7 +413,7 @@ def _apply_ability_action(run, ability_key):
         _set_cooldown(run, ability_key)
         dmg = random.randint(5, 8) + run["leader"]["dmg_bonus"] + run["temp_buffs"]["dmg"] + combat.get("combat_dmg_bonus", 0)
         timore_dmg = random.randint(2, 3)
-        log.append("Littori Sacri: infliggi %d danni fisici e %d alla Timore del nemico." % (dmg, timore_dmg))
+        log.append("Littori Sacri: infliggi %d danni fisici e %d al Timore del nemico." % (dmg, timore_dmg))
         vive = [m for m in run["seguito"] if m["alive"]]
         if vive:
             scelto = random.choice(vive)
@@ -426,9 +435,9 @@ def _apply_ability_action(run, ability_key):
         timore_dmg = random.randint(4, 6)
         if random.random() < 0.3:
             timore_dmg *= 2
-            log.append("Omelia della Potenza: colpo critico! Infliggi %d danni alla Timore del nemico." % timore_dmg)
+            log.append("Omelia della Potenza: colpo critico! Infliggi %d danni al Timore del nemico." % timore_dmg)
         else:
-            log.append("Omelia della Potenza: infliggi %d danni alla Timore del nemico." % timore_dmg)
+            log.append("Omelia della Potenza: infliggi %d danni al Timore del nemico." % timore_dmg)
         return 0, timore_dmg, log, False
 
     if ability_key == "messa_salvifica":
@@ -485,7 +494,7 @@ def _apply_ability_action(run, ability_key):
     if ability_key == "ogni_uomo_ha_un_prezzo":
         _set_cooldown(run, ability_key)
         timore_dmg = random.randint(4, 5)
-        log.append("Ogni Uomo ha un Prezzo: infliggi %d danni alla Timore del nemico." % timore_dmg)
+        log.append("Ogni Uomo ha un Prezzo: infliggi %d danni al Timore del nemico." % timore_dmg)
         return 0, timore_dmg, log, False
 
     if ability_key == "azzardo_economico":
@@ -494,7 +503,7 @@ def _apply_ability_action(run, ability_key):
         run["treasure"]["oro"] = 0
         timore_dmg = oro_speso * 2
         if oro_speso > 0:
-            log.append("Azzardo Economico: spendi %d Oro, infliggendo %d danni alla Timore del nemico." % (oro_speso, timore_dmg))
+            log.append("Azzardo Economico: spendi %d Oro, infliggendo %d danni al Timore del nemico." % (oro_speso, timore_dmg))
         else:
             log.append("Azzardo Economico: non hai Oro da spendere, il gesto e' vano.")
         return 0, timore_dmg, log, False
@@ -517,7 +526,7 @@ def _apply_ability_action(run, ability_key):
         timore_dmg = random.randint(3, 5)
         combat["enemy_weaken_turns"] = 2
         combat["enemy_weaken_amount"] = 3
-        log.append("Parole di Scherno: infliggi %d danni alla Timore del nemico, e il suo prossimo danno fisico sara' ridotto." % timore_dmg)
+        log.append("Parole di Scherno: infliggi %d danni al Timore del nemico, e il suo prossimo danno fisico sara' ridotto." % timore_dmg)
         return 0, timore_dmg, log, False
 
     if ability_key == "picconata_fortunata":
@@ -664,7 +673,7 @@ def resolve_combat_round(run, action_key):
                 assorbito = min(pool, base)
                 base -= assorbito
                 combat["shield_timore_pool"] -= assorbito
-                log.append("Lo Scudo Magico assorbe %d danni alla Timore (%d rimasti nel serbatoio)." % (assorbito, combat["shield_timore_pool"]))
+                log.append("Lo Scudo Magico assorbe %d danni al Timore (%d rimasti nel serbatoio)." % (assorbito, combat["shield_timore_pool"]))
             total_mres = run["leader"]["mres"] + run["temp_buffs"]["mres"] + combat.get("combat_mres_bonus", 0)
             reduced = max(1 if base > 0 else 0, base - total_mres)
             run["leader"]["timore"] -= reduced
