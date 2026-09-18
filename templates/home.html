@@ -4,15 +4,39 @@
 <p style="text-align:center;opacity:0.75;font-style:italic">Un dungeon roguelite per i personaggi di Orbis Terrarum.</p>
 <div class="panel-box" style="max-width:420px;margin:0 auto">
   {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  {% if known_characters %}
+  <div style="margin-bottom:1rem">
+    <label>Personaggio già registrato<br>
+      <select id="known-select" style="width:100%">
+        <option value="">— scrivi i campi sotto manualmente —</option>
+        {% for c in known_characters %}
+        <option value="{{ c.faction }}||{{ c.name }}">{{ c.name }} ({{ c.faction }})</option>
+        {% endfor %}
+      </select>
+    </label>
+  </div>
+  {% endif %}
   <form method="post">
     <div style="margin-bottom:0.7rem">
-      <label>Fazione<br><input type="text" name="faction" required style="width:100%"></label>
+      <label>Fazione<br><input type="text" name="faction" id="faction-input" required style="width:100%"></label>
     </div>
     <div style="margin-bottom:1rem">
-      <label>Nome del personaggio<br><input type="text" name="name" required style="width:100%"></label>
+      <label>Nome del personaggio<br><input type="text" name="name" id="name-input" required style="width:100%"></label>
     </div>
     <button type="submit" class="btn" style="width:100%">Entra nella Spedizione →</button>
   </form>
 </div>
-<div class="footer-note">Usa esattamente lo stesso nome del personaggio registrato nel Master Panel.</div>
+<div class="footer-note">Al primo accesso di un personaggio, usa esattamente lo stesso nome registrato nel Master Panel — dai turni successivi comparirà nel menu qui sopra.</div>
+
+<script>
+var sel = document.getElementById('known-select');
+if (sel) {
+  sel.addEventListener('change', function() {
+    if (!this.value) return;
+    var parts = this.value.split('||');
+    document.getElementById('faction-input').value = parts[0];
+    document.getElementById('name-input').value = parts[1];
+  });
+}
+</script>
 {% endblock %}
