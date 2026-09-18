@@ -13,7 +13,7 @@
   <input type="hidden" name="name" value="{{ name }}">
 
   <div class="panel-box">
-    <h3>🪖 Scegli il Seguito (massimo {{ max_pick }})</h3>
+    <h3 id="entourage-title">🪖 Scegli il Seguito (massimo {{ max_pick }})</h3>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0.6rem">
       {% for key, e in entourage_types.items() %}
       <label style="border:1px solid var(--border);border-radius:8px;padding:0.6rem;cursor:pointer;display:block">
@@ -28,8 +28,8 @@
   <div class="panel-box">
     <h3>🎽 Equipaggiamento posseduto</h3>
     {% if not owned %}
-      <div style="opacity:0.7;font-size:0.85rem">Non possiedi ancora nessun oggetto — gli slot resteranno vuoti per questa spedizione. Gli oggetti si trovano affrontando boss e miniboss.</div>
-    {% else %}
+      <div style="opacity:0.7;font-size:0.85rem">Non possiedi ancora nessun oggetto — gli slot resteranno vuoti per questa spedizione, a meno che tu non abbia Strumenti del Mestiere. Gli oggetti si trovano affrontando boss e miniboss.</div>
+    {% endif %}
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0.8rem">
         <div>
           <label>Slot Arma<br>
@@ -38,6 +38,9 @@
               {% for o in owned %}{% if items[o.item_id].slot == 'arma' %}
               <option value="{{ o.item_id }}">{{ items[o.item_id].name }}</option>
               {% endif %}{% endfor %}
+              {% if has_strumenti %}{% for iid, it in items.items() %}{% if it.slot == 'arma' and it.rarity == 'base' and iid not in owned_ids %}
+              <option value="{{ iid }}">{{ it.name }} (Strumenti del Mestiere)</option>
+              {% endif %}{% endfor %}{% endif %}
             </select>
           </label>
         </div>
@@ -48,6 +51,9 @@
               {% for o in owned %}{% if items[o.item_id].slot == 'armatura' %}
               <option value="{{ o.item_id }}">{{ items[o.item_id].name }}</option>
               {% endif %}{% endfor %}
+              {% if has_strumenti %}{% for iid, it in items.items() %}{% if it.slot == 'armatura' and it.rarity == 'base' and iid not in owned_ids %}
+              <option value="{{ iid }}">{{ it.name }} (Strumenti del Mestiere)</option>
+              {% endif %}{% endfor %}{% endif %}
             </select>
           </label>
         </div>
@@ -58,14 +64,68 @@
               {% for o in owned %}
               <option value="{{ o.item_id }}">{{ items[o.item_id].name }} ({{ items[o.item_id].slot }})</option>
               {% endfor %}
+              {% if has_strumenti %}{% for iid, it in items.items() %}{% if it.rarity == 'base' and iid not in owned_ids %}
+              <option value="{{ iid }}">{{ it.name }} ({{ it.slot }}, Strumenti del Mestiere)</option>
+              {% endif %}{% endfor %}{% endif %}
             </select>
           </label>
         </div>
       </div>
-    {% endif %}
+    {% if has_strumenti %}<div style="font-size:0.7rem;opacity:0.6;margin-top:0.5rem">Gli oggetti segnati "Strumenti del Mestiere" non richiedono di essere posseduti — validi solo se equipaggi quell'abilità.</div>{% endif %}
   </div>
 
-  <div id="entourage-error" class="error" style="display:none;text-align:center">Puoi scegliere al massimo {{ max_pick }} membri del Seguito.</div>
+  {% if uses_loadout %}
+  <div class="panel-box">
+    <h3>🎓 Scegli le abilità da equipaggiare (Attacco Fisico incluso automaticamente, più {{ ability_loadout_size - 1 }})</h3>
+    {% if active_abilities|length <= ability_loadout_size - 1 %}
+      <div style="opacity:0.75;font-size:0.85rem">Hai esattamente {{ active_abilities|length }} abilità sbloccate: le porti tutte con te.</div>
+      {% for a in active_abilities %}<input type="hidden" name="abilities" value="{{ a.key }}">{% endfor %}
+    {% else %}
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0.6rem">
+        {% for a in active_abilities %}
+        <label style="border:1px solid var(--border);border-radius:8px;padding:0.6rem;cursor:pointer;display:block">
+          <input type="checkbox" name="abilities" value="{{ a.key }}" class="ability-check" data-entourage-bonus="{{ entourage_bonus_map.get(a.key, 0) }}" {% if loop.index0 < ability_loadout_size - 1 %}checked{% endif %}>
+          <strong>{{ a.name }}</strong>
+          <div style="font-size:0.72rem;opacity:0.7;margin-top:0.3rem">{{ a.desc }}</div>
+        </label>
+        {% endfor %}
+      </div>
+      <div id="ability-error" class="error" style="display:none;margin-top:0.6rem">Puoi equipaggiare al massimo {{ ability_loadout_size - 1 }} abilità (oltre all'Attacco Fisico).</div>
+      <script>
+      function currentEntourageMax() {
+        var bonus = 0;
+        document.querySelectorAll('.ability-check:checked').forEach(function(cb) {
+          bonus += parseInt(cb.getAttribute('data-entourage-bonus') || '0', 10);
+        });
+        return {{ max_pick }} + bonus;
+      }
+      function refreshEntourageLimit() {
+        var max = currentEntourageMax();
+        document.getElementById('entourage-title').textContent = '🪖 Scegli il Seguito (massimo ' + max + ')';
+        var checked = document.querySelectorAll('.entourage-check:checked');
+        if (checked.length > max) {
+          for (var i = checked.length - 1; i >= max; i--) { checked[i].checked = false; }
+        }
+      }
+      document.querySelectorAll('.ability-check').forEach(function(cb) {
+        cb.addEventListener('change', function() {
+          var checked = document.querySelectorAll('.ability-check:checked');
+          var err = document.getElementById('ability-error');
+          if (checked.length > {{ ability_loadout_size - 1 }}) {
+            this.checked = false;
+            err.style.display = 'block';
+          } else {
+            err.style.display = 'none';
+          }
+          refreshEntourageLimit();
+        });
+      });
+      </script>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div id="entourage-error" class="error" style="display:none;text-align:center">Hai raggiunto il limite massimo di truppe nel Seguito.</div>
   <div style="text-align:center"><button type="submit" class="btn">Parti per la spedizione →</button></div>
 </form>
 
@@ -74,7 +134,8 @@ document.querySelectorAll('.entourage-check').forEach(function(cb) {
   cb.addEventListener('change', function() {
     var checked = document.querySelectorAll('.entourage-check:checked');
     var err = document.getElementById('entourage-error');
-    if (checked.length > {{ max_pick }}) {
+    var max = (typeof currentEntourageMax === 'function') ? currentEntourageMax() : {{ max_pick }};
+    if (checked.length > max) {
       this.checked = false;
       err.style.display = 'block';
     } else {

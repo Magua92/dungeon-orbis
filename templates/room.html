@@ -12,6 +12,15 @@
   </div>
 </div>
 
+{% if next_room_options %}
+<div class="panel-box" style="text-align:center;margin-bottom:1rem">
+  <div style="font-size:0.75rem;color:var(--gold-light);font-family:'Cinzel',serif">🗺️ Mappatore Esperto — nella prossima stanza troverai:</div>
+  <div style="margin-top:0.4rem">
+    {% for opt in next_room_options %}<span style="margin:0 0.4rem">{{ room_types[opt].icon }} {{ room_types[opt].name }}</span>{% endfor %}
+  </div>
+</div>
+{% endif %}
+
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem">
   {% for opt in options %}
   {% set rt = room_types[opt] %}
@@ -39,4 +48,15 @@
   </form>
   {% endfor %}
 </div>
+
+{% if room_actions %}
+<div style="text-align:center;margin-top:1.2rem">
+  {% for a in room_actions %}
+  <form method="post" action="/room_action" style="display:inline">
+    <input type="hidden" name="ability_key" value="{{ a.key }}">
+    <button type="submit" class="btn" style="border-color:#c4962a88" title="{{ a.desc }}">{{ a.name }}</button>
+  </form>
+  {% endfor %}
+</div>
+{% endif %}
 {% endblock %}

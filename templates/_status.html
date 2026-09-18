@@ -9,8 +9,8 @@
   <div class="bar-label" style="margin-top:0.4rem"><span>😰 Timore</span><span>{{ l.timore }} / {{ l.timore_max }}</span></div>
   <div class="bar-track"><div class="bar-fill timore" style="width:{{ (l.timore / l.timore_max * 100) | round | int }}%"></div></div>
   <div style="display:flex;gap:0.6rem;margin-top:0.5rem;flex-wrap:wrap;font-size:0.75rem">
-    <span>🛡️ Armatura: {{ l.armor + run.temp_buffs.armor }}</span>
-    <span>🧠 Res. Mentale: {{ l.mres + run.temp_buffs.mres }}</span>
+    <span>🛡️ Armatura: {{ l.armor + run.temp_buffs.armor + (run.combat.combat_armor_bonus if run.combat else 0) }}</span>
+    <span>🧠 Res. Mentale: {{ l.mres + run.temp_buffs.mres + (run.combat.combat_mres_bonus if run.combat else 0) }}</span>
     <span>💰 Oro: {{ run.treasure.oro }}</span>
   </div>
   <div style="display:flex;gap:0.4rem;margin-top:0.5rem;flex-wrap:wrap">
