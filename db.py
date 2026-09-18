@@ -59,6 +59,13 @@ def get_character(faction, name):
     return dict(row) if row else None
 
 
+def get_all_characters():
+    conn = get_conn()
+    rows = conn.execute("SELECT faction, name, class FROM characters ORDER BY faction, name").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
 def create_character(faction, name, char_class):
     conn = get_conn()
     conn.execute("INSERT INTO characters (faction, name, class, xp) VALUES (?,?,?,0)", (faction, name, char_class))
