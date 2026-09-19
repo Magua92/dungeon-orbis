@@ -3,6 +3,21 @@
 <h1 style="text-align:center">⚙️ Amministrazione — Blocchi Spedizione</h1>
 {% if error %}<div class="error" style="text-align:center">{{ error }}</div>{% endif %}
 
+<div class="panel-box" style="border-color:{{ 'var(--gold)' if unlimited_runs else 'var(--border)' }}">
+  <h3>🌙 Modalità turni illimitati</h3>
+  <div style="margin-bottom:0.6rem;font-size:0.85rem">
+    Stato attuale:
+    {% if unlimited_runs %}<strong style="color:var(--gold-light)">ATTIVA — nessun limite di spedizioni per nessuno</strong>
+    {% else %}<strong>disattivata — normale, 1 spedizione a testa per turno</strong>{% endif %}
+  </div>
+  <form method="post">
+    <input type="password" name="password" placeholder="Password amministratore" style="width:100%;margin-bottom:0.6rem">
+    <input type="hidden" name="action" value="toggle_unlimited">
+    <button type="submit" class="btn" style="width:100%">{{ 'Disattiva' if unlimited_runs else 'Attiva' }} turni illimitati</button>
+  </form>
+  <div style="font-size:0.7rem;opacity:0.6;margin-top:0.5rem">Da usare per serate di prova libere. I blocchi normali continuano a registrarsi in silenzio nel frattempo: quando disattivi, torna tutto come da regola — ricordati comunque di "sbloccare tutti" al prossimo turno vero, come sempre.</div>
+</div>
+
 <div class="panel-box">
   <h3>🎭 Personaggi registrati</h3>
   {% if not characters %}<div style="opacity:0.7">Nessun personaggio ancora registrato.</div>{% endif %}
