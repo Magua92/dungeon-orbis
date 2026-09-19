@@ -215,13 +215,16 @@ def enemy_defense(archetype, level):
     return round(raw_armor * 2 / 3), round(raw_mres * 2 / 3)
 
 
+ENEMY_DMG_MULTIPLIER = 1.3  # +30% al danno base nemico (richiesto dopo test di bilanciamento col Diplomatico)
+
+
 def get_enemy_tier(n, level=1):
     """Statistiche del nemico per la stanza n (1-based) e il livello del personaggio."""
     pool = ENEMY_POOLS.get(n, ENEMY_POOLS[max(ENEMY_POOLS.keys())])
     f = enemy_power_factor(level)
     pv = round((8 + 2 * (n - 1)) * f)
-    dmg_min = round((2 + (n - 1) // 3) * f)
-    dmg_max = round((4 + (n - 1) // 2) * f)
+    dmg_min = round((2 + (n - 1) // 3) * ENEMY_DMG_MULTIPLIER * f)
+    dmg_max = round((4 + (n - 1) // 2) * ENEMY_DMG_MULTIPLIER * f)
     fear_chance = max(0.0, min(0.6, (n - 2) * 0.12))
     fear_dmg = (dmg_min + 1, dmg_max + 1) if fear_chance > 0 else (0, 0)
     return {"pv": pv, "dmg": (dmg_min, dmg_max), "fear_chance": fear_chance, "fear_dmg": fear_dmg, "pool": pool}
@@ -317,6 +320,24 @@ ITEMS = {
 
 EQUIP_SLOTS = ["slot_arma", "slot_armatura", "slot_jolly"]  # jolly: arma o armatura, a scelta
 LOOT_LEVEL_SCALING = True  # se True, roll_loot() applica level_factor() al bottino
+
+
+def format_item_effects(effects):
+    """Rende leggibile in italiano SOLO gli effetti che engine.py applica davvero
+    (dmg, armor, mres, iniziativa). Gli altri flag salvati sugli oggetti epici/
+    leggendari (ignora_difese_pct, riflette_pct, critico_colpisce_timore, ecc.) non
+    sono ancora collegati a nessuna logica di combattimento: ometterli qui evita di
+    promettere ai giocatori un effetto che il gioco non applica per davvero."""
+    parts = []
+    if effects.get("dmg"):
+        parts.append("+%d Danno" % effects["dmg"])
+    if effects.get("armor"):
+        parts.append("+%d Armatura" % effects["armor"])
+    if effects.get("mres"):
+        parts.append("+%d Res. Mentale" % effects["mres"])
+    if effects.get("iniziativa"):
+        parts.append("%+d Iniziativa" % effects["iniziativa"])
+    return ", ".join(parts) if parts else "Nessun effetto meccanico attivo al momento"
 
 # ─── RIEPILOGO DISCORD (embed narrativo a fine spedizione) ──────────────────
 # Ogni voce e' (titolo, descrizione), con {name} e {faction} sostituiti a runtime

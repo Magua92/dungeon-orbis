@@ -942,7 +942,7 @@ def resolve_combat_round(run, action_key):
 
     combat["round"] += 1
     run["log"] = log
-    if combat["round"] > 8:
+    if combat["round"] > 30:
         # timeout di sicurezza: il nemico si dissolve, vittoria parziale
         run["log"].append("Il nemico si dissolve nell'ombra, esausto quanto voi.")
         return "vittoria"
