@@ -5,6 +5,7 @@ nessuna scrittura su factions.json — i risultati vanno applicati a mano dal Ma
 dopo aver letto il riepilogo (anche mandato su Discord via webhook, se configurato)."""
 import os
 import datetime
+import random
 from werkzeug.utils import secure_filename
 from flask import Flask, request, session, redirect, url_for, render_template
 
@@ -75,6 +76,53 @@ def send_discord_summary(text):
         requests.post(DISCORD_WEBHOOK_URL, json={"content": text}, timeout=8)
     except Exception:
         pass  # un fallimento nell'invio non deve mai far crollare la run del giocatore
+
+
+def send_discord_embed(embed):
+    if not DISCORD_WEBHOOK_URL or not requests:
+        return
+    try:
+        requests.post(DISCORD_WEBHOOK_URL, json={"embeds": [embed]}, timeout=8)
+    except Exception:
+        pass  # un fallimento nell'invio non deve mai far crollare la run del giocatore
+
+
+def build_expedition_report(run, xp_gained, loot, drop_names):
+    """Costruisce sia l'embed Discord sia il testo mostrato nella pagina di fine
+    spedizione, cosi' i due non possono disallinearsi: stessa storia, due formati."""
+    faction, name, char_class, result = run["faction"], run["name"], run["class"], run["result"]
+    variants = gd.DISCORD_NARRATIVE.get(result, {}).get(char_class)
+    if not variants:
+        variants = [("Spedizione conclusa per {name}", "{name} torna a {faction}.")]
+    title_tmpl, desc_tmpl = random.choice(variants)
+    title = title_tmpl.format(name=name, faction=faction)
+    description = desc_tmpl.format(name=name, faction=faction)
+
+    fields = [
+        {"name": "Stanze superate", "value": "%d/%d" % (run["room_index"], gd.ROOMS_PER_RUN), "inline": True},
+        {"name": "Esperienza", "value": "%d PE" % xp_gained, "inline": True},
+    ]
+    if loot:
+        fields.append({"name": "Bottino", "value": ", ".join("%d %s" % (v, k) for k, v in loot.items()), "inline": False})
+    if drop_names:
+        fields.append({"name": "Oggetti trovati", "value": ", ".join(drop_names), "inline": False})
+
+    embed = {
+        "title": title,
+        "description": description,
+        "color": gd.DISCORD_EMBED_COLORS.get(result, 0x808080),
+        "fields": fields,
+    }
+    char = db.get_character(faction, name)
+    if char and char.get("portrait"):
+        portrait_path = os.path.join(PORTRAIT_DIR, char["portrait"])
+        if os.path.exists(portrait_path):
+            embed["thumbnail"] = {"url": url_for("static", filename="portraits/" + char["portrait"], _external=True)
+                                   + "?v=%d" % int(os.path.getmtime(portrait_path))}
+
+    summary_text = "%s\n\n%s\n\n" % (title, description)
+    summary_text += "\n".join("%s: %s" % (f["name"], f["value"]) for f in fields)
+    return embed, summary_text
 
 
 def _run():
@@ -402,19 +450,11 @@ def run_end():
     result_labels = {
         "vittoria": "🏆 Vittoria completa",
         "sconfitta_timore": "😰 Ritirata per Timore",
-        "sconfitta_morte": "💀 Sconfitta",
+        "sconfitta_morte": "💥 Spedizione Fallita",
         "ritirata_bancarotta": "💰 Ritirata (Bancarotta)",
     }
-    loot_txt = ", ".join("%d %s" % (v, k) for k, v in loot.items()) if loot else "nessuno"
-    drop_txt = (", oggetti trovati: " + ", ".join(drop_names)) if drop_names else ""
-    summary = (
-        "🗺️ **Spedizione conclusa** — %s (%s)\n"
-        "Esito: %s — stanze superate: %d/%d\n"
-        "Bottino: %s%s\n"
-        "Esperienza guadagnata: %d PE"
-    ) % (name, faction, result_labels.get(run["result"], run["result"]), run["room_index"], gd.ROOMS_PER_RUN,
-         loot_txt, drop_txt, xp_gained)
-    send_discord_summary(summary)
+    embed, summary = build_expedition_report(run, xp_gained, loot, drop_names)
+    send_discord_embed(embed)
 
     session.pop("run", None)
     return render_template("run_end.html", run=run, loot=loot, drop_names=drop_names, xp_gained=xp_gained,

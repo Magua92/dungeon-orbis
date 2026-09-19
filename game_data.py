@@ -317,3 +317,155 @@ ITEMS = {
 
 EQUIP_SLOTS = ["slot_arma", "slot_armatura", "slot_jolly"]  # jolly: arma o armatura, a scelta
 LOOT_LEVEL_SCALING = True  # se True, roll_loot() applica level_factor() al bottino
+
+# ─── RIEPILOGO DISCORD (embed narrativo a fine spedizione) ──────────────────
+# Ogni voce e' (titolo, descrizione), con {name} e {faction} sostituiti a runtime
+# (mai nomi di luoghi o fazioni inventati: solo la fazione vera del personaggio,
+# cosi' non puo' mai comparire fuori contesto). "sconfitta_morte" NON è la morte
+# del personaggio: la spedizione collassa e si perde tutto il bottino raccolto,
+# ma il personaggio resta vivo e giocabile dal turno successivo.
+DISCORD_EMBED_COLORS = {
+    "vittoria": 0x2ecc71,
+    "sconfitta_morte": 0x8c2a2a,
+    "sconfitta_timore": 0x4a2a7a,
+    "ritirata_bancarotta": 0xc4962a,
+}
+
+DISCORD_NARRATIVE = {
+    "vittoria": {
+        "Generale": [
+            ("Il Generale {name} è tornato dalle profondità",
+             "Emerge coperto di polvere e sangue non suo, il passo pesante ma il capo alto. {faction} avrà una nuova storia da raccontare stanotte."),
+            ("{name} ha spezzato ogni resistenza nel dungeon",
+             "Torna con l'armatura ammaccata e lo sguardo di chi non ha mai dubitato dell'esito. Un altro pericolo per {faction} è stato ridotto in polvere."),
+            ("Vittoria per {name}",
+             "Nessuna cerimonia, nessun proclama: solo un soldato che torna da un compito portato a termine, come sempre."),
+        ],
+        "Mago": [
+            ("{name} torna con nuovi appunti (e qualche ustione)",
+             "Il dungeon ha offerto più risposte di quante ne cercasse, e {name} le ha annotate tutte prima di andarsene. {faction} ne trarrà beneficio."),
+            ("Un altro enigma risolto da {name}",
+             "Torna borbottando formule e schemi ancora da verificare, ma con addosso l'aria soddisfatta di chi ha imparato qualcosa di nuovo."),
+            ("{name} ha domato le profondità con la sola volontà",
+             "Il fuoco arcano ha aperto la strada; {faction} accoglie un mago un po' più esperto e un po' più insonne."),
+        ],
+        "Diplomatico": [
+            ("{name} ha portato la Fede nelle profondità",
+             "Emerge con la stola macchiata ma lo sguardo fermo, come chi ha guardato l'oscurità negli occhi e le ha recitato una litania in faccia. I fedeli di {faction} accoglieranno questa storia come una nuova parabola."),
+            ("Un nuovo segno per {name}",
+             "Torna intonando sottovoce un canto di ringraziamento, convinto che nulla di ciò che ha visto sia stato lasciato al caso. {faction} avrà un'altra prova della sua devozione."),
+            ("Il voto di {name} è stato onorato",
+             "Le profondità hanno messo alla prova la sua fede più delle sue armi, ed entrambe hanno retto. Torna a {faction} con reliquie e certezze rinnovate."),
+        ],
+        "Esploratore": [
+            ("{name} ha trovato una via anche dove non ce n'era",
+             "Torna con il fiuto ancora acceso e le tasche piene di cose che, giura, valgono più di quanto sembrino. {faction} approva, per una volta senza fare domande."),
+            ("Un'altra scommessa vinta da {name}",
+             "Il dungeon nascondeva più insidie del previsto, ma niente che un po' di sangue freddo e fortuna sfacciata non potessero risolvere."),
+            ("{name} torna dalle profondità con un sorriso storto",
+             "Non tutto è andato come previsto, ma è andato bene lo stesso — e per {name} è già una vittoria."),
+        ],
+        "Amministratore": [
+            ("{name} ha chiuso i conti in attivo",
+             "Ogni rischio calcolato, ogni spesa giustificata: torna con un bilancio che farebbe invidia a qualunque casa di {faction}."),
+            ("Un investimento ben riuscito per {name}",
+             "Le profondità si sono rivelate un affare redditizio. I registri di {faction} si arricchiscono di una voce molto positiva."),
+            ("{name} ha portato a casa il profitto atteso",
+             "Nessun imprevisto che i numeri non avessero già previsto. Un'altra spedizione, un altro margine di guadagno."),
+        ],
+    },
+    "sconfitta_morte": {
+        "Generale": [
+            ("{name} è stato ricacciato indietro, a mani vuote",
+             "Il Seguito lo ha portato fuori privo di sensi ma vivo; tutto ciò che aveva raccolto è andato perduto nelle profondità. {faction} rifletterà a lungo su cosa sia andato storto."),
+            ("La spedizione di {name} è crollata sotto i colpi nemici",
+             "Torna a {faction} con l'orgoglio più ferito del corpo, e nessun bottino da mostrare per il rischio corso."),
+            ("{name} è stato costretto alla ritirata più dura",
+             "Sconfitto ma non perduto: le profondità gli hanno tolto tutto tranne la possibilità di riprovarci."),
+        ],
+        "Mago": [
+            ("Un calcolo sbagliato per {name}",
+             "Qualcosa nel dungeon non seguiva le regole previste. Torna a {faction} intero ma svuotato di ogni componente e appunto raccolto."),
+            ("{name} è stato sopraffatto prima di completare lo studio",
+             "Le profondità hanno vinto questa volta; tornerà a {faction} con qualche teoria in meno da dimostrare, e a mani vuote."),
+            ("Il rituale di {name} si è interrotto a metà",
+             "Portato fuori esausto dal proprio Seguito, non resta nulla di ciò che aveva trovato — solo la lezione, amara, di aver sottovalutato il pericolo."),
+        ],
+        "Diplomatico": [
+            ("La fede di {name} è stata messa a dura prova, e la spedizione è crollata",
+             "Il Seguito lo ha portato fuori vivo ma privo di ogni reliquia raccolta. {faction} pregherà per lui questa notte."),
+            ("{name} non ha ottenuto il segno che cercava",
+             "Le profondità gli hanno negato ogni grazia, e con essa ogni bottino. Torna a {faction} intero nel corpo, umiliato nello spirito."),
+            ("Un voto interrotto per {name}",
+             "La spedizione si è chiusa prima del tempo, e con essa ogni cosa raccolta lungo il cammino. Resta la fede; il resto è perduto."),
+        ],
+        "Esploratore": [
+            ("{name} ha spinto la fortuna oltre il limite",
+             "Questa volta è andata male: portato fuori privo di sensi, senza nulla da mostrare per il rischio corso. {faction} lo accoglierà comunque, come sempre."),
+            ("La scommessa di {name} non ha pagato",
+             "Torna a {faction} con le tasche vuote quanto lo sguardo — ma torna, ed è già qualcosa."),
+            ("{name} è stato ricacciato fuori dalle profondità",
+             "Nessun bottino, nessuna scusa: solo la certezza che la prossima volta andrà diversamente."),
+        ],
+        "Amministratore": [
+            ("Un bilancio in perdita per {name}",
+             "Il rischio calcolato questa volta non ha pagato: torna a {faction} vivo ma senza un solo bene da registrare a proprio favore."),
+            ("{name} ha dovuto segnare la spedizione come perdita totale",
+             "Nessun profitto, nessuna consolazione contabile — solo la certezza di essere tornato in vita, che almeno quella non si registra a debito."),
+            ("Le profondità hanno azzerato il guadagno di {name}",
+             "Portato fuori dal proprio Seguito senza nulla in mano, dovrà rifarsi al prossimo turno."),
+        ],
+    },
+    "sconfitta_timore": {
+        "Generale": [
+            ("{name} si è ritirato, la mente scossa ma il bottino salvo",
+             "Le ombre del dungeon erano insopportabili anche per un veterano come lui. Il corpo è tornato integro, e con sé ciò che era già stato raccolto."),
+            ("Il coraggio di {name} ha ceduto, non le mani",
+             "Torna a {faction} con lo sguardo turbato, ma con ogni cosa trovata lungo il cammino ancora al sicuro."),
+            ("{name} ha scelto di fermarsi prima che fosse troppo tardi",
+             "Il Timore ha avuto la meglio sull'ambizione, ma non sul buon senso: torna a {faction} con il bottino intatto."),
+        ],
+        "Mago": [
+            ("Qualcosa nelle profondità ha spezzato la concentrazione di {name}",
+             "Torna scosso ma lucido a sufficienza da non aver lasciato nulla indietro. {faction} studierà con cautela ciò che ha visto."),
+            ("{name} si è ritirato davanti a un orrore che i libri non descrivevano",
+             "La mente vacilla, ma le mani hanno tenuto stretto ogni componente raccolto."),
+            ("Il Timore ha avuto la meglio su {name}, non sulla sua borsa",
+             "Torna turbato ma con il bottino al sicuro, pronto a consultare i testi di {faction} su ciò che ha visto."),
+        ],
+        "Diplomatico": [
+            ("La fede di {name} ha vacillato, ma non è caduta",
+             "Le profondità hanno mostrato qualcosa che nessuna preghiera sembrava poter placare. Si ritira, portando comunque con sé ogni reliquia raccolta."),
+            ("{name} ha scelto la ritirata, non la disperazione",
+             "Torna a {faction} turbato nello spirito ma saldo nel possesso di ciò che ha trovato."),
+            ("Un'ombra che nemmeno {name} sapeva come esorcizzare",
+             "Si ritira con il Timore ancora addosso, ma con il bottino intatto — la fede, dice, tornerà con il riposo e la preghiera."),
+        ],
+        "Esploratore": [
+            ("Anche {name} conosce il momento di fermarsi",
+             "Il dungeon ha mostrato i denti, e stavolta ha scelto di ritirarsi invece di rischiare tutto. Il bottino resta comunque suo."),
+            ("{name} si è ritirato con la pelle d'oca e le tasche piene",
+             "Non tutte le battaglie vanno combattute fino in fondo: torna scosso, ma con tutto ciò che aveva già racimolato."),
+            ("Il fiuto di {name} gli ha detto di tornare indietro",
+             "Meglio vivi e turbati che morti e con un bottino più grande, dice — e nessuno a {faction} può contraddirlo."),
+        ],
+        "Amministratore": [
+            ("{name} ha fatto un calcolo del rischio, e ha vinto la prudenza",
+             "Il Timore accumulato superava il valore atteso di continuare. Si ritira, portando comunque a casa ogni guadagno fatto finora."),
+            ("Una ritirata prudente per {name}",
+             "I nervi hanno ceduto prima dei conti: torna a {faction} turbato ma con il bilancio della spedizione ancora in attivo."),
+            ("{name} ha scelto di non rischiare l'intero capitale",
+             "Il Timore ha imposto una pausa, non una perdita: ogni risorsa raccolta resta al sicuro nei suoi registri."),
+        ],
+    },
+    "ritirata_bancarotta": {
+        "Amministratore": [
+            ("{name} ha dichiarato la spedizione conclusa — per convenienza",
+             "Con le casse abbastanza piene e la voglia di rischiare ormai esaurita, ha deciso che il bottino di oggi bastava. I suoi registri approvano."),
+            ("Una ritirata strategica, dice {name}",
+             "Nessuna sconfitta, nessun pericolo imminente: solo la fredda conclusione che continuare non avrebbe migliorato il bilancio. Torna a {faction} con tutto ciò che aveva raccolto."),
+            ("{name} ha chiuso i conti in anticipo",
+             "Perché rischiare un profitto già solido? Si ritira con ogni risorsa al sicuro, soddisfatto della propria disciplina."),
+        ],
+    },
+}
