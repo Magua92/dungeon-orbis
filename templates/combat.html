@@ -20,12 +20,21 @@
   </div>
 </div>
 
+<div id="duel-stage" style="position:relative;display:flex;justify-content:center;align-items:center;gap:4rem;height:100px;margin-bottom:0.8rem">
+  {% if run.portrait_url %}<img id="duel-player" src="{{ run.portrait_url }}" alt="" style="width:84px;height:84px;border-radius:50%;object-fit:cover;border:2px solid var(--gold)">{% else %}<div id="duel-player" style="width:84px;height:84px;border-radius:50%;border:2px solid var(--gold);display:flex;align-items:center;justify-content:center;font-size:2rem;background:#1c150c">🧑</div>{% endif %}
+  <div id="duel-sword" style="position:absolute;top:50%;left:50%;font-size:1.8rem;opacity:0;transform:translate(-50%,-50%);pointer-events:none">⚔️</div>
+  {% if enemy_portrait_url %}<img id="duel-enemy" src="{{ enemy_portrait_url }}" alt="" style="width:84px;height:84px;border-radius:50%;object-fit:cover;border:2px solid var(--pv)">{% else %}<div id="duel-enemy" style="width:84px;height:84px;border-radius:50%;border:2px solid var(--pv);display:flex;align-items:center;justify-content:center;font-size:2rem;background:#1c150c">{{ c.icon }}</div>{% endif %}
+</div>
+
+<div class="combat-log" id="combat-log-live"></div>
+<noscript>
 <div class="combat-log">
   {% for line in run.log %}<div>{{ line }}</div>{% endfor %}
 </div>
+</noscript>
 
 <div style="font-family:'Cinzel',serif;font-size:0.85rem;color:var(--gold-light);margin-bottom:0.5rem">Scegli la tua azione:</div>
-<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.6rem">
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.6rem" id="action-buttons">
   {% for a in actions %}
   {% if a.available %}
   <form method="post" action="/combat/act" title="{{ a.desc }}">
@@ -48,12 +57,71 @@
 </div>
 {% endblock %}
 {% block sound_cues %}
-{% if sound_cues %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-  {% for cue in sound_cues %}SFX.play('{{ cue }}');
-  {% endfor %}
-});
+(function() {
+  var lines = {{ run.log|tojson }};
+  var logEl = document.getElementById('combat-log-live');
+  var player = document.getElementById('duel-player');
+  var enemy = document.getElementById('duel-enemy');
+  var sword = document.getElementById('duel-sword');
+  var stage = document.getElementById('duel-stage');
+
+  function classify(text) {
+    if (/infliggi|colpiscono per|colpisce per|danni al nemico|danni fisici e|danni al Timore del nemico|critico/.test(text)) return 'hit_dealt';
+    if (/Subisci|attacca la tua psiche|ti indebolisce|ti ferisce in profondità|sanguinamento|perdi /.test(text)) return 'hit_taken';
+    if (/recuperi|ti infonde|si riprende/.test(text)) return 'heal';
+    if (/scudo|Scudo|assorbe|attutisce/.test(text)) return 'shield';
+    return null;
+  }
+
+  function flash(el) {
+    if (!el) return;
+    el.style.transition = 'none';
+    el.style.filter = 'brightness(1.7)';
+    el.style.transform = 'scale(0.92)';
+    void el.offsetWidth;
+    el.style.transition = 'filter 0.25s, transform 0.2s';
+    el.style.filter = 'brightness(1)';
+    el.style.transform = 'scale(1)';
+  }
+
+  function swing(attacker, target) {
+    if (!sword || !attacker || !target || !stage) return;
+    var stageRect = stage.getBoundingClientRect();
+    var fromX = attacker.getBoundingClientRect().left + attacker.offsetWidth / 2 - stageRect.left;
+    var toX = target.getBoundingClientRect().left + target.offsetWidth / 2 - stageRect.left;
+    sword.style.transition = 'none';
+    sword.style.left = fromX + 'px';
+    sword.style.opacity = '1';
+    sword.style.transform = 'translate(-50%,-50%) rotate(' + (fromX < toX ? '-25deg' : '25deg') + ')';
+    void sword.offsetWidth;
+    sword.style.transition = 'left 0.32s ease-in';
+    sword.style.left = toX + 'px';
+    setTimeout(function() { sword.style.opacity = '0'; flash(target); }, 320);
+  }
+
+  var delay = 450;
+  var actionButtons = document.querySelectorAll('#action-buttons button[type=submit]');
+  if (lines.length > 0) {
+    actionButtons.forEach(function(b) { b.disabled = true; b.style.opacity = '0.5'; b.style.cursor = 'wait'; });
+  }
+  lines.forEach(function(line) {
+    setTimeout(function() {
+      var cue = classify(line);
+      if (cue === 'hit_dealt') { swing(player, enemy); if (window.SFX) SFX.play('hit_dealt'); }
+      else if (cue === 'hit_taken') { swing(enemy, player); if (window.SFX) SFX.play('hit_taken'); }
+      else if (cue === 'heal') { flash(player); if (window.SFX) SFX.play('heal'); }
+      else if (cue === 'shield') { if (window.SFX) SFX.play('shield'); }
+      var div = document.createElement('div');
+      div.textContent = line;
+      logEl.appendChild(div);
+      logEl.scrollTop = logEl.scrollHeight;
+    }, delay);
+    delay += 550;
+  });
+  setTimeout(function() {
+    actionButtons.forEach(function(b) { b.disabled = false; b.style.opacity = ''; b.style.cursor = ''; });
+  }, delay);
+})();
 </script>
-{% endif %}
 {% endblock %}
