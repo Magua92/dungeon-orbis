@@ -33,8 +33,82 @@
 </style>
 </head>
 <body>
+<button id="sfx-toggle" onclick="SFX.toggleMute()" title="Attiva/disattiva effetti sonori"
+        style="position:fixed;top:0.8rem;right:0.8rem;z-index:999;background:#1c150c;border:1px solid var(--border);color:var(--gold-light);border-radius:6px;padding:0.35rem 0.6rem;cursor:pointer;font-size:1rem;line-height:1">🔊</button>
 <div class="wrap">
 {% block content %}{% endblock %}
 </div>
+<script>
+// Motore di effetti sonori generato via Web Audio API — nessun file audio da scaricare,
+// nessun problema di copyright. Silenziabile con il pulsante in alto a destra; lo stato
+// resta salvato nel browser (localStorage) tra una pagina e l'altra.
+window.SFX = (function() {
+  var ctx = null;
+  function getCtx() {
+    if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { ctx = null; } }
+    return ctx;
+  }
+  function isMuted() { return localStorage.getItem('sfx_muted') === '1'; }
+  function tone(freq, duration, type, gainStart, glideTo, delay) {
+    var c = getCtx();
+    if (!c) return;
+    setTimeout(function() {
+      try {
+        var osc = c.createOscillator();
+        var gain = c.createGain();
+        osc.type = type || 'sine';
+        osc.frequency.setValueAtTime(freq, c.currentTime);
+        if (glideTo) osc.frequency.exponentialRampToValueAtTime(glideTo, c.currentTime + duration);
+        gain.gain.setValueAtTime(gainStart || 0.18, c.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + duration);
+        osc.connect(gain).connect(c.destination);
+        osc.start();
+        osc.stop(c.currentTime + duration);
+      } catch (e) {}
+    }, delay || 0);
+  }
+  function noiseBurst(duration, gainStart, delay) {
+    var c = getCtx();
+    if (!c) return;
+    setTimeout(function() {
+      try {
+        var bufferSize = Math.floor(c.sampleRate * duration);
+        var buffer = c.createBuffer(1, bufferSize, c.sampleRate);
+        var data = buffer.getChannelData(0);
+        for (var i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+        var src = c.createBufferSource();
+        src.buffer = buffer;
+        var gain = c.createGain();
+        gain.gain.setValueAtTime(gainStart || 0.2, c.currentTime);
+        src.connect(gain).connect(c.destination);
+        src.start();
+      } catch (e) {}
+    }, delay || 0);
+  }
+  var sounds = {
+    hit_dealt: function() { tone(220, 0.1, 'square', 0.15, 90); },
+    hit_taken: function() { noiseBurst(0.12, 0.22); tone(110, 0.15, 'sawtooth', 0.12, 55, 10); },
+    heal: function() { tone(523, 0.1, 'sine', 0.14); tone(784, 0.15, 'sine', 0.12, null, 90); },
+    shield: function() { tone(300, 0.18, 'triangle', 0.14, 480); },
+    victory: function() { [523, 659, 784, 1047].forEach(function(f, i) { tone(f, 0.28, 'triangle', 0.15, null, i * 110); }); },
+    defeat: function() { [420, 320, 240, 160].forEach(function(f, i) { tone(f, 0.32, 'sawtooth', 0.14, null, i * 150); }); },
+  };
+  function play(name) {
+    if (isMuted() || !sounds[name]) return;
+    sounds[name]();
+  }
+  function updateButton() {
+    var btn = document.getElementById('sfx-toggle');
+    if (btn) btn.textContent = isMuted() ? '🔇' : '🔊';
+  }
+  function toggleMute() {
+    localStorage.setItem('sfx_muted', isMuted() ? '0' : '1');
+    updateButton();
+  }
+  document.addEventListener('DOMContentLoaded', updateButton);
+  return { play: play, toggleMute: toggleMute };
+})();
+</script>
+{% block sound_cues %}{% endblock %}
 </body>
 </html>

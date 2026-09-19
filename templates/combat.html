@@ -47,3 +47,13 @@
   {% endfor %}
 </div>
 {% endblock %}
+{% block sound_cues %}
+{% if sound_cues %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  {% for cue in sound_cues %}SFX.play('{{ cue }}');
+  {% endfor %}
+});
+</script>
+{% endif %}
+{% endblock %}
