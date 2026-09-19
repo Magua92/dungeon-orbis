@@ -72,7 +72,7 @@ CLASSES = {
             {"key": "agilita_felina",       "lvl": 1,  "name": "Agilità Felina",        "type": "passiva",  "desc": "Sempre attiva: 20% di possibilita' di evitare completamente ogni colpo."},
             {"key": "parole_di_scherno",    "lvl": 3,  "name": "Parole di Scherno",     "type": "danno",    "cd": 4, "desc": "3-5 danni al Timore del nemico; il suo danno fisico e' ridotto di 3 per i 2 turni successivi."},
             {"key": "picconata_fortunata",  "lvl": 5,  "name": "Picconata Fortunata",   "type": "danno",    "cd": 3, "desc": "6-9 danni fisici; 15% di critico che raddoppia il danno."},
-            {"key": "indovinelli_oscurita", "lvl": 7,  "name": "Indovinelli nell'Oscurità","type": "danno", "cd": 5, "desc": "3 tiri al 50%: ogni successo infligge 8 danni al nemico, ogni fallimento te ne infligge 4 diretti."},
+            {"key": "indovinelli_oscurita", "lvl": 7,  "name": "Indovinelli nell'Oscurità","type": "danno", "cd": 5, "desc": "3 tiri al 50%: ogni successo infligge 8 danni al nemico, ogni fallimento te ne infligge 4 (mitigati da scudi e armatura)."},
             {"key": "mappatore_esperto",    "lvl": 9,  "name": "Mappatore Esperto",     "type": "passiva",  "desc": "Sempre attiva: vedi in anticipo le stanze successive, e raddogli le risorse ottenute a fine combattimento."},
             {"key": "vie_segrete",          "lvl": 10, "name": "Vie Segrete",           "type": "supporto", "once": True, "room_action": True, "desc": "Una volta a run, salta la stanza corrente (non il miniboss) senza affrontarla."},
         ],

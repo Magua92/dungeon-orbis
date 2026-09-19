@@ -74,9 +74,26 @@ def get_character(faction, name):
 
 def get_all_characters():
     conn = get_conn()
-    rows = conn.execute("SELECT faction, name, class FROM characters ORDER BY faction, name").fetchall()
+    rows = conn.execute("SELECT faction, name, class, xp, portrait FROM characters ORDER BY faction, name").fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+def update_character(faction, name, char_class, xp):
+    conn = get_conn()
+    conn.execute("UPDATE characters SET class=?, xp=? WHERE faction=? AND name=?", (char_class, xp, faction, name))
+    conn.commit()
+    conn.close()
+
+
+def delete_character(faction, name):
+    conn = get_conn()
+    conn.execute("DELETE FROM characters WHERE faction=? AND name=?", (faction, name))
+    conn.execute("DELETE FROM equipment_owned WHERE faction=? AND name=?", (faction, name))
+    conn.execute("DELETE FROM run_history WHERE faction=? AND name=?", (faction, name))
+    conn.execute("DELETE FROM run_lock WHERE faction=? AND name=?", (faction, name))
+    conn.commit()
+    conn.close()
 
 
 def create_character(faction, name, char_class):

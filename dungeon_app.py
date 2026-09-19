@@ -432,8 +432,31 @@ def admin():
                 db.clear_all_locks()
             elif action == "clear_one":
                 db.clear_lock(request.form.get("faction", ""), request.form.get("name", ""))
+            elif action == "edit_character":
+                faction = request.form.get("faction", "")
+                name = request.form.get("name", "")
+                new_class = request.form.get("new_class", "")
+                if db.get_character(faction, name) and new_class in gd.CLASSES:
+                    try:
+                        new_xp = max(0, int(request.form.get("new_xp", "0")))
+                    except ValueError:
+                        new_xp = 0
+                    db.update_character(faction, name, new_class, new_xp)
+            elif action == "delete_character":
+                faction = request.form.get("faction", "")
+                name = request.form.get("name", "")
+                char = db.get_character(faction, name)
+                if char:
+                    if char.get("portrait"):
+                        old_path = os.path.join(PORTRAIT_DIR, char["portrait"])
+                        if os.path.exists(old_path):
+                            os.remove(old_path)
+                    db.delete_character(faction, name)
     locks = db.get_all_locks()
-    return render_template("admin.html", locks=locks, error=error)
+    characters = db.get_all_characters()
+    for c in characters:
+        c["level"] = engine.level_from_xp(c["xp"])
+    return render_template("admin.html", locks=locks, characters=characters, classes=gd.CLASSES, error=error)
 
 
 if __name__ == "__main__":

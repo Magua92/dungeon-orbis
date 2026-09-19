@@ -551,18 +551,34 @@ def _apply_ability_action(run, ability_key):
     if ability_key == "indovinelli_oscurita":
         _set_cooldown(run, ability_key)
         dmg_nemico = 0
-        dmg_leader = 0
+        dmg_leader_raw = 0
         successi = 0
         for _ in range(3):
             if random.random() < 0.5:
                 dmg_nemico += 8
                 successi += 1
             else:
-                dmg_leader += 4
-        if dmg_leader:
-            run["leader"]["pv"] -= dmg_leader
+                dmg_leader_raw += 4
+        dmg_leader = 0
+        if dmg_leader_raw > 0:
+            residuo = dmg_leader_raw
+            shield = combat.get("shield_reduction", 0)
+            if shield and residuo > 0:
+                residuo = max(0, residuo - shield)
+                combat["shield_reduction"] = 0
+                log.append("Lo scudo di Formazione Difensiva attutisce il colpo.")
+            pool = combat.get("shield_physical_pool", 0)
+            if pool and residuo > 0:
+                assorbito = min(pool, residuo)
+                residuo -= assorbito
+                combat["shield_physical_pool"] -= assorbito
+                log.append("Lo Scudo Magico assorbe %d danni fisici (%d rimasti nel serbatoio)." % (assorbito, combat["shield_physical_pool"]))
+            final_armor = run["leader"]["armor"] + run["temp_buffs"]["armor"] + combat.get("combat_armor_bonus", 0)
+            dmg_leader = max(1, residuo - final_armor) if residuo > 0 else 0
+            if dmg_leader > 0:
+                run["leader"]["pv"] -= dmg_leader
         log.append("Indovinelli nell'Oscurità: %d successi su 3 — infliggi %d danni%s." %
-                    (successi, dmg_nemico, (" e subisci %d danni diretti" % dmg_leader) if dmg_leader else ""))
+                    (successi, dmg_nemico, (" e subisci %d danni" % dmg_leader) if dmg_leader else ""))
         return dmg_nemico, 0, log, False
 
     if ability_key == "scorciatoia":
