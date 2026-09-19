@@ -16,6 +16,12 @@
     <span>🧠 Res. Mentale: {{ l.mres + run.temp_buffs.mres + (run.combat.combat_mres_bonus if run.combat else 0) }}</span>
     <span>💰 Oro: {{ run.treasure.oro }}</span>
   </div>
+  {% set passive = CLASS_PASSIVES.get(run.class) %}
+  {% if passive %}
+  <div style="margin-top:0.4rem;font-size:0.72rem" title="{{ passive.desc }}">
+    <span style="background:#1c150c;border:1px solid var(--gold);color:var(--gold-light);padding:0.15rem 0.5rem;border-radius:5px">{{ passive.icon }} {{ passive.name }}</span>
+  </div>
+  {% endif %}
   {% if run.combat and (run.combat.shield_physical_pool > 0 or run.combat.shield_timore_pool > 0 or run.combat.shield_reduction > 0) %}
   <div style="display:flex;gap:0.5rem;margin-top:0.4rem;flex-wrap:wrap;font-size:0.72rem">
     {% if run.combat.shield_physical_pool > 0 %}<span style="background:#1c150c;border:1px solid var(--pv-light);color:var(--pv-light);padding:0.15rem 0.5rem;border-radius:5px">🛡️ Scudo Vita: {{ run.combat.shield_physical_pool }}</span>{% endif %}

@@ -23,6 +23,13 @@
   <div style="font-size:0.8rem;opacity:0.8">
     Abilità sbloccate: {% for a in abilities %}{{ a.name }}{% if not loop.last %}, {% endif %}{% endfor %}
   </div>
+  {% set passive = CLASS_PASSIVES.get(char_class) %}
+  {% if passive %}
+  <div style="margin-top:0.6rem;padding-top:0.6rem;border-top:1px solid #4a3d2833">
+    <div style="font-size:0.8rem"><strong>{{ passive.icon }} {{ passive.name }}</strong> <span style="opacity:0.6;font-size:0.7rem">— passiva di classe, sempre attiva</span></div>
+    <div style="font-size:0.75rem;opacity:0.75;margin-top:0.2rem">{{ passive.desc }}</div>
+  </div>
+  {% endif %}
 </div>
 
 <form method="post" action="/start_run" id="prepare-form">
