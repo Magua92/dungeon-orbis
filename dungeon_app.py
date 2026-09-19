@@ -372,8 +372,7 @@ def combat():
     actions = engine.all_combat_abilities(run)
     is_boss = run["combat"]["tier"] == "boss"
     return render_template("combat.html", run=run, actions=actions, is_boss=is_boss,
-                            enemy_portrait_url=_monster_portrait_url(run["combat"]["name"]),
-                            sound_cues=sound_cues_from_log(run.get("log", [])))
+                            enemy_portrait_url=_monster_portrait_url(run["combat"]["name"]))
 
 
 @app.route("/combat/act", methods=["POST"])
@@ -444,8 +443,7 @@ def miniboss():
         session["run"] = run
     actions = engine.all_combat_abilities(run)
     return render_template("combat.html", run=run, actions=actions, is_boss=True, is_miniboss_intro=True,
-                            enemy_portrait_url=_monster_portrait_url(run["combat"]["name"]),
-                            sound_cues=sound_cues_from_log(run.get("log", [])))
+                            enemy_portrait_url=_monster_portrait_url(run["combat"]["name"]))
 
 
 @app.route("/run_end")
