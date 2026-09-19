@@ -12,12 +12,12 @@ ENTOURAGE_TYPES = {
     "cavaliere":    {"name": "Cavaliere",               "icon": "🐎", "desc": "Possibilità di annullare del tutto un attacco fisico nemico."},
     "purificatore": {"name": "Purificatore",            "icon": "✨", "desc": "Cura un poco di Vita del leader a ogni round."},
     "guardiano":    {"name": "Guardiano",               "icon": "🪨", "desc": "Riduce il danno fisico subito più volte prima di cadere."},
-    "martello":     {"name": "Compagni del Martello",   "icon": "🔨", "desc": "Non si consuma mai: infligge sempre 2 danni fisici al nemico a ogni round."},
+    "martello":     {"name": "Compagni del Martello",   "icon": "🔨", "desc": "Non si consuma mai: infligge sempre 1 danno fisico al nemico a ogni round."},
     "vessillifero": {"name": "Vessillifero",            "icon": "🎺", "desc": "Finché è vivo, i tuoi attacchi e le tue abilità infliggono +1 danno fisico."},
     "sciamano":     {"name": "Sciamano",                "icon": "🔮", "desc": "Cura un poco di Timore del leader a ogni round."},
     "bardo":        {"name": "Bardo",                   "icon": "🎭", "desc": "Riduce la possibilità che il nemico colpisca il tuo Timore invece dei PV."},
     "novizio":      {"name": "Novizio",                 "icon": "🛡️", "desc": "A inizio di ogni combattimento genera un piccolo scudo fisico e mentale, poi si consuma."},
-    "ariete":       {"name": "Ariete",                  "icon": "🏇", "desc": "Non si consuma mai: infligge sempre 2 danni al Timore del nemico a ogni round."},
+    "ariete":       {"name": "Ariete",                  "icon": "🏇", "desc": "Non si consuma mai: infligge sempre 1 danno al Timore del nemico a ogni round."},
     "penitente":    {"name": "Penitente",               "icon": "🕯️", "desc": "Ogni volta che cade un membro del Seguito, il leader recupera un po' di Timore."},
 }
 ENTOURAGE_MAX_PICK = 3
@@ -25,13 +25,13 @@ GUARDIANO_CHARGES = 3
 GUARDIANO_REDUCTION = 3
 CAVALIERE_WARD_CHANCE = 0.30
 MERCENARIO_SUCCESS_CHANCE = 0.70
-MARTELLO_COUNTER_DMG = 2
+MARTELLO_COUNTER_DMG = 1
 PURIFICATORE_HEAL = 2
 SCIAMANO_HEAL = 2
 BARDO_FEAR_REDUCTION = 0.15
 NOVIZIO_SHIELD_PHYSICAL = 5
 NOVIZIO_SHIELD_TIMORE = 5
-ARIETE_COUNTER_DMG = 2
+ARIETE_COUNTER_DMG = 1
 PENITENTE_TIMORE_BONUS = 2
 ARCIERE_DMG_BONUS = 2
 
@@ -55,7 +55,7 @@ CLASSES = {
         "icon": "✨",
         "abilities": [
             {"key": "colpo_arcano",     "lvl": 1,  "name": "Colpo Arcano",     "type": "danno",    "cd": 2, "desc": "4-6 danni; ogni utilizzo aumenta permanentemente di 1 il danno dei prossimi Colpi Arcani, per la durata del combattimento."},
-            {"key": "scudo_magico",     "lvl": 1,  "name": "Scudo Magico",     "type": "supporto", "cd": 4, "desc": "Uno scudo assorbe i prossimi 10 danni fisici e i prossimi 12 danni al Timore, finche' dura o finche' il combattimento finisce."},
+            {"key": "scudo_magico",     "lvl": 1,  "name": "Scudo Magico",     "type": "supporto", "cd": 4, "desc": "Uno scudo assorbe i prossimi 7 danni fisici e i prossimi 10 danni al Timore, finche' dura o finche' il combattimento finisce."},
             {"key": "raggio_congelante","lvl": 1,  "name": "Raggio Congelante","type": "danno",    "cd": 3, "desc": "5-7 danni; 50% di rallentare il nemico, che agisce per ultimo per 2 turni."},
             {"key": "parola_guaritrice","lvl": 3,  "name": "Parola Guaritrice","type": "supporto", "cd": 4, "desc": "Cura 5-10 Vita e 6-12 Timore."},
             {"key": "potenziale_arcano","lvl": 5,  "name": "Potenziale Arcano","type": "passiva",  "desc": "Sempre attiva: +2 danno permanente al Colpo Arcano per tutta la run, +1 ulteriore per ogni Gemma raccolta."},
@@ -69,7 +69,7 @@ CLASSES = {
         "abilities": [
             {"key": "orazione_esperta", "lvl": 1,  "name": "Orazione Esperta",    "type": "danno",    "cd": 2, "desc": "3-5 danni al Timore del nemico; 50% di rianimare una truppa caduta del tuo Seguito."},
             {"key": "littori_sacri",    "lvl": 1,  "name": "Littori Sacri",       "type": "danno",    "cd": 3, "desc": "5-8 danni fisici e 2-3 danni al Timore del nemico; una truppa a caso del tuo Seguito viene sacrificata."},
-            {"key": "proteggimi",       "lvl": 1,  "name": "Proteggimi!",         "type": "supporto", "cd": 4, "desc": "Ottieni uno scudo di 4 Vita e 2 Timore per ogni truppa ancora attiva, fino a fine combattimento."},
+            {"key": "proteggimi",       "lvl": 1,  "name": "Proteggimi!",         "type": "supporto", "cd": 4, "desc": "Ottieni uno scudo di 3 Vita e 2 Timore per ogni truppa ancora attiva, fino a fine combattimento."},
             {"key": "bastione_della_fede","lvl": 3,"name": "Bastione della Fede", "type": "passiva",  "desc": "Sempre attiva: recuperi 2 Vita a turno, cumulabile col Purificatore del Seguito (4 Vita a turno insieme)."},
             {"key": "omelia_della_potenza","lvl": 5,"name": "Omelia della Potenza","type": "danno",   "cd": 4, "desc": "4-6 danni al Timore del nemico; 30% di critico che raddoppia il danno."},
             {"key": "omelia_della_salvezza","lvl": 7,"name": "Omelia della Salvezza","type": "passiva","once": True, "desc": "Sempre attiva: la prima volta che dovresti cadere a 0 Vita, ignori il danno e torni a 1 Vita (una volta a run)."},
@@ -215,27 +215,58 @@ def enemy_defense(archetype, level):
     return round(raw_armor * 2 / 3), round(raw_mres * 2 / 3)
 
 
-ENEMY_DMG_MULTIPLIER = 1.3  # +30% al danno base nemico (richiesto dopo test di bilanciamento col Diplomatico)
+ENEMY_PV_MULTIPLIER = 1.3   # +30% ai PV base nemici (i giocatori li abbattevano troppo in fretta)
+
+# Danno nemico: tabella tarata a mano da Amedeo dopo test live (sostituisce il vecchio
+# moltiplicatore automatico). Valori esatti ai livelli 1/5/10, interpolati linearmente
+# per i livelli intermedi (2-4, 6-9), cosi' la curva resta fedele a questi tre punti fissi.
+ENEMY_DMG_TABLE = {
+    1: {1: (4, 6),  5: (5, 7),   10: (6, 8)},
+    2: {1: (4, 7),  5: (5, 8),   10: (6, 9)},
+    3: {1: (5, 8),  5: (6, 9),   10: (7, 10)},
+    4: {1: (6, 9),  5: (6, 10),  10: (8, 11)},
+    5: {1: (7, 10), 5: (8, 11),  10: (9, 11)},
+    6: {1: (8, 11), 5: (9, 12),  10: (10, 12)},
+    7: {1: (9, 12), 5: (10, 13), 10: (11, 14)},
+}
+ENEMY_BOSS_DMG_TABLE = {1: (10, 14), 5: (11, 16), 10: (13, 18)}
+
+
+def _interp_dmg(table_by_level, level):
+    """Interpola linearmente (min, max) tra i livelli-ancora piu' vicini presenti
+    nella tabella, arrotondando all'intero. Fuori range, resta sull'estremo."""
+    keys = sorted(table_by_level.keys())
+    if level <= keys[0]:
+        return table_by_level[keys[0]]
+    if level >= keys[-1]:
+        return table_by_level[keys[-1]]
+    lo = max(k for k in keys if k <= level)
+    hi = min(k for k in keys if k >= level)
+    if lo == hi:
+        return table_by_level[lo]
+    lo_v, hi_v = table_by_level[lo], table_by_level[hi]
+    t = (level - lo) / (hi - lo)
+    return (round(lo_v[0] + (hi_v[0] - lo_v[0]) * t),
+            round(lo_v[1] + (hi_v[1] - lo_v[1]) * t))
 
 
 def get_enemy_tier(n, level=1):
     """Statistiche del nemico per la stanza n (1-based) e il livello del personaggio."""
     pool = ENEMY_POOLS.get(n, ENEMY_POOLS[max(ENEMY_POOLS.keys())])
-    f = enemy_power_factor(level)
-    pv = round((8 + 2 * (n - 1)) * f)
-    dmg_min = round((2 + (n - 1) // 3) * ENEMY_DMG_MULTIPLIER * f)
-    dmg_max = round((4 + (n - 1) // 2) * ENEMY_DMG_MULTIPLIER * f)
+    pv = round((8 + 2 * (n - 1)) * ENEMY_PV_MULTIPLIER * enemy_power_factor(level))
+    table = ENEMY_DMG_TABLE.get(n, ENEMY_DMG_TABLE[max(ENEMY_DMG_TABLE.keys())])
+    dmg_min, dmg_max = _interp_dmg(table, level)
     fear_chance = max(0.0, min(0.6, (n - 2) * 0.12))
     fear_dmg = (dmg_min + 1, dmg_max + 1) if fear_chance > 0 else (0, 0)
     return {"pv": pv, "dmg": (dmg_min, dmg_max), "fear_chance": fear_chance, "fear_dmg": fear_dmg, "pool": pool}
 
 
 def get_boss_tier(rooms_per_run, level=1):
-    """Il miniboss scala in base al numero di stanze della run e al livello del personaggio,
-    sempre circa 1.75x le PV dell'ultima stanza normale."""
+    """Il miniboss scala in base al numero di stanze della run e al livello del personaggio:
+    PV sempre circa 1.75x l'ultima stanza normale, danno dalla tabella tarata a mano."""
     last = get_enemy_tier(rooms_per_run, level)
     pv = int(last["pv"] * 1.75)
-    dmg = (last["dmg"][0] + 2, last["dmg"][1] + 3)
+    dmg = _interp_dmg(ENEMY_BOSS_DMG_TABLE, level)
     return {"pv": pv, "dmg": dmg, "fear_chance": 0.5, "fear_dmg": (dmg[0], dmg[1]), "pool": BOSS_POOL}
 
 ROOMS_PER_RUN = 7

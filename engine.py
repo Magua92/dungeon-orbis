@@ -398,9 +398,9 @@ def _apply_ability_action(run, ability_key):
 
     if ability_key == "scudo_magico":
         _set_cooldown(run, ability_key)
-        combat["shield_physical_pool"] += 10
-        combat["shield_timore_pool"] += 12
-        log.append("Scudo Magico: eretta una barriera che assorbira' i prossimi 10 danni fisici e 12 al Timore.")
+        combat["shield_physical_pool"] += 7
+        combat["shield_timore_pool"] += 10
+        log.append("Scudo Magico: eretta una barriera che assorbira' i prossimi 7 danni fisici e 10 al Timore.")
         return 0, 0, log, False
 
     if ability_key == "raggio_congelante":
@@ -466,9 +466,9 @@ def _apply_ability_action(run, ability_key):
     if ability_key == "proteggimi":
         _set_cooldown(run, ability_key)
         attive = sum(1 for m in run["seguito"] if m["alive"])
-        combat["shield_physical_pool"] += 4 * attive
+        combat["shield_physical_pool"] += 3 * attive
         combat["shield_timore_pool"] += 2 * attive
-        log.append("Proteggimi!: %d truppe ancora in vita ti proteggono con uno scudo di %d Vita e %d Timore." % (attive, 4 * attive, 2 * attive))
+        log.append("Proteggimi!: %d truppe ancora in vita ti proteggono con uno scudo di %d Vita e %d Timore." % (attive, 3 * attive, 2 * attive))
         return 0, 0, log, False
 
     if ability_key == "omelia_della_potenza":
