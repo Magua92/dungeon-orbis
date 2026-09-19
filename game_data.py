@@ -8,11 +8,17 @@ RESOURCE_TYPES = ["cibo", "legname", "pietra", "ferro", "gemme", "oro"]
 # ─── SEGUITO (indipendente dalle truppe delle fazioni in chronicle.py) ───────
 ENTOURAGE_TYPES = {
     "fante":        {"name": "Fante",                 "icon": "⚔️", "desc": "Assorbe un colpo fisico intero, poi cade."},
-    "arciere":      {"name": "Arciere",                "icon": "🏹", "desc": "Aumenta la probabilità di agire per primi."},
+    "arciere":      {"name": "Arciere",                "icon": "🏹", "desc": "Aumenta la probabilità di agire per primi; quando agisci per primo, il tuo colpo infligge anche +2 danni."},
     "cavaliere":    {"name": "Cavaliere",               "icon": "🐎", "desc": "Possibilità di annullare del tutto un attacco fisico nemico."},
     "purificatore": {"name": "Purificatore",            "icon": "✨", "desc": "Cura un poco di Vita del leader a ogni round."},
     "guardiano":    {"name": "Guardiano",               "icon": "🪨", "desc": "Riduce il danno fisico subito più volte prima di cadere."},
-    "martello":     {"name": "Compagni del Martello",   "icon": "🔨", "desc": "Quando assorbe un colpo, infligge un contrattacco al nemico."},
+    "martello":     {"name": "Compagni del Martello",   "icon": "🔨", "desc": "Non si consuma mai: infligge sempre 2 danni fisici al nemico a ogni round."},
+    "vessillifero": {"name": "Vessillifero",            "icon": "🎺", "desc": "Finché è vivo, i tuoi attacchi e le tue abilità infliggono +1 danno fisico."},
+    "sciamano":     {"name": "Sciamano",                "icon": "🔮", "desc": "Cura un poco di Timore del leader a ogni round."},
+    "bardo":        {"name": "Bardo",                   "icon": "🎭", "desc": "Riduce la possibilità che il nemico colpisca il tuo Timore invece dei PV."},
+    "novizio":      {"name": "Novizio",                 "icon": "🛡️", "desc": "A inizio di ogni combattimento genera un piccolo scudo fisico e mentale, poi si consuma."},
+    "ariete":       {"name": "Ariete",                  "icon": "🏇", "desc": "Non si consuma mai: infligge sempre 2 danni al Timore del nemico a ogni round."},
+    "penitente":    {"name": "Penitente",               "icon": "🕯️", "desc": "Ogni volta che cade un membro del Seguito, il leader recupera un po' di Timore."},
 }
 ENTOURAGE_MAX_PICK = 3
 GUARDIANO_CHARGES = 3
@@ -21,6 +27,13 @@ CAVALIERE_WARD_CHANCE = 0.30
 MERCENARIO_SUCCESS_CHANCE = 0.70
 MARTELLO_COUNTER_DMG = 2
 PURIFICATORE_HEAL = 2
+SCIAMANO_HEAL = 2
+BARDO_FEAR_REDUCTION = 0.15
+NOVIZIO_SHIELD_PHYSICAL = 5
+NOVIZIO_SHIELD_TIMORE = 5
+ARIETE_COUNTER_DMG = 2
+PENITENTE_TIMORE_BONUS = 2
+ARCIERE_DMG_BONUS = 2
 
 # ─── CLASSI E ABILITA' (5 per classe, sbloccate per livello) ────────────────
 # type: 'danno' | 'supporto' | 'passiva' (le passive si applicano da sole, non si "usano")
@@ -74,7 +87,7 @@ CLASSES = {
             {"key": "picconata_fortunata",  "lvl": 5,  "name": "Picconata Fortunata",   "type": "danno",    "cd": 3, "desc": "6-9 danni fisici; 15% di critico che raddoppia il danno."},
             {"key": "indovinelli_oscurita", "lvl": 7,  "name": "Indovinelli nell'Oscurità","type": "danno", "cd": 5, "desc": "3 tiri al 50%: ogni successo infligge 8 danni al nemico, ogni fallimento te ne infligge 4 (mitigati da scudi e armatura)."},
             {"key": "mappatore_esperto",    "lvl": 9,  "name": "Mappatore Esperto",     "type": "passiva",  "desc": "Sempre attiva: vedi in anticipo le stanze successive, e raddogli le risorse ottenute a fine combattimento."},
-            {"key": "vie_segrete",          "lvl": 10, "name": "Vie Segrete",           "type": "supporto", "once": True, "room_action": True, "desc": "Una volta a run, salta la stanza corrente (non il miniboss) senza affrontarla."},
+            {"key": "vie_segrete",          "lvl": 10, "name": "Vie Segrete",           "type": "supporto", "once": True, "room_action": True, "desc": "Una volta a run, salti tutte le stanze rimanenti e ti ritrovi direttamente davanti al miniboss."},
         ],
     },
     "Amministratore": {
@@ -170,7 +183,23 @@ def level_factor(level):
 def enemy_power_factor(level):
     """Usato per PV/danno NEMICI: cresce piu' lentamente delle ricompense, cosi' il
     livello resta vantaggioso in senso assoluto (piu' bottino, nemici solo un po' piu' duri)."""
-    return 1 + (level - 1) * 0.045
+    return 1 + (level - 1) * 0.05
+
+
+# ─── COMPORTAMENTI AGGIUNTIVI DEL NEMICO (oltre ad attacco fisico / al Timore) ─────
+# Valori volutamente bassi: sono varianti tattiche, non un salto di difficolta'.
+ENEMY_HEAL_CHANCE = 0.25       # per round, solo se il nemico e' sotto il 50% dei PV
+ENEMY_HEAL_MIN, ENEMY_HEAL_MAX = 3, 5
+ENEMY_BUFF_CHANCE = 0.12       # per round, solo se non ha gia' un buff attivo
+ENEMY_BUFF_AMOUNT = 1
+ENEMY_BUFF_TURNS = 3
+ENEMY_DEBUFF_CHANCE = 0.12     # per round, solo se il giocatore non ha gia' un debuff attivo
+ENEMY_DEBUFF_AMOUNT = 1
+ENEMY_DEBUFF_TURNS = 3
+ENEMY_BLEED_CHANCE = 0.12      # per round, solo se il giocatore non sta gia' sanguinando
+ENEMY_BLEED_TURNS = 3
+ENEMY_BLEED_DMG_NORMAL = (1, 2)  # per turno, nemici normali
+ENEMY_BLEED_DMG_BOSS = 3         # per turno, solo boss/miniboss
 
 
 def enemy_defense(archetype, level):
@@ -225,6 +254,30 @@ INCUDINE_OPTIONS = [
     {"stat": "armor", "label": "+1 Armatura"},
     {"stat": "mres",  "label": "+1 Resistenza Mentale"},
 ]
+
+# ─── PASSIVE DI CLASSE (sempre attive, non occupano uno slot equipaggiabile) ─
+CLASS_PASSIVES = {
+    "Generale": {
+        "key": "ira_funesta", "name": "Ira Funesta", "icon": "😡",
+        "desc": "Quando scendi sotto il 50% dei PV o del Timore, tutte le tue abilità e i tuoi attacchi infliggono +3 danni.",
+    },
+    "Mago": {
+        "key": "esperto_catalogatore", "name": "Esperto Catalogatore", "icon": "💎",
+        "desc": "30% di possibilità di ottenere una Gemma bonus dopo ogni combattimento.",
+    },
+    "Diplomatico": {
+        "key": "pretoriani", "name": "Pretoriani", "icon": "🛡️",
+        "desc": "Ad ogni turno, recuperi 1 Vita e 1 Timore per ogni truppa ancora in vita nel tuo Seguito.",
+    },
+    "Esploratore": {
+        "key": "sforzo_adrenalinico", "name": "Sforzo Adrenalinico", "icon": "⚡",
+        "desc": "Contro Boss e Miniboss: guadagni il 25% dei tuoi PV e Timore massimi come scudo a inizio combattimento, e tutte le tue mosse hanno un ulteriore 10% di possibilità di infliggere un colpo critico.",
+    },
+    "Amministratore": {
+        "key": "abile_nelle_trattative", "name": "Abile nelle Trattative", "icon": "🤝",
+        "desc": "Il primo potenziamento della Forgia in ogni run è gratuito (i primi 2, dal livello 10 in su).",
+    },
+}
 
 # ─── LOOT (stanze di battaglia normali e miniboss) ──────────────────────────
 NORMAL_LOOT_AMOUNT = (2, 4)

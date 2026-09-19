@@ -179,6 +179,17 @@ def has_ability(run, key):
 
 
 # ─── SEGUITO: ASSORBIMENTO DI UN COLPO FISICO ────────────────────────────
+def _troop_falls(run, member, log):
+    """Segna una truppa del Seguito come caduta e applica l'effetto passivo del
+    Penitente, se presente nel Seguito (recupero di Timore per il leader). Va
+    usata ovunque una truppa muoia, qualunque sia la causa."""
+    member["alive"] = False
+    if any(m["alive"] and m["type"] == "penitente" for m in run["seguito"]):
+        bonus = gd.PENITENTE_TIMORE_BONUS
+        run["leader"]["timore"] = min(run["leader"]["timore_max"], run["leader"]["timore"] + bonus)
+        log.append("Penitente: il sacrificio non è vano, recuperi %d Timore." % bonus)
+
+
 def _seguito_absorb(run, incoming_dmg):
     """Tenta di far assorbire il colpo fisico dal Seguito. Ritorna (assorbito: bool,
     danno_residuo_al_leader: int, righe_di_log: list)."""
@@ -202,28 +213,23 @@ def _seguito_absorb(run, incoming_dmg):
         m["charges"] -= 1
         log.append("Il Guardiano assorbe parte del colpo (-%d danno)." % gd.GUARDIANO_REDUCTION)
         if m["charges"] <= 0:
-            m["alive"] = False
             log.append("Il Guardiano, esausto, cade.")
+            _troop_falls(run, m, log)
         return True, residuo, log
 
-    for tipo, msg_extra in (("fante", ""), ("martello", "")):
-        membri = alive_of(tipo)
-        if membri:
-            m = membri[0]
-            survive = razionamento and random.random() < 0.5
-            if not survive:
-                m["alive"] = False
-            nome = gd.ENTOURAGE_TYPES[tipo]["name"]
-            log.append("%s assorbe il colpo interamente%s." % (nome, " e resiste ancora!" if survive else ", e cade."))
-            if tipo == "martello":
-                run["combat"]["enemy_pv"] -= gd.MARTELLO_COUNTER_DMG
-                log.append("I Compagni del Martello contrattaccano per %d danni!" % gd.MARTELLO_COUNTER_DMG)
-            return True, 0, log
+    membri = alive_of("fante")
+    if membri:
+        m = membri[0]
+        survive = razionamento and random.random() < 0.5
+        log.append("Fante assorbe il colpo interamente%s." % (" e resiste ancora!" if survive else ", e cade."))
+        if not survive:
+            _troop_falls(run, m, log)
+        return True, 0, log
 
     mercenari = alive_of("mercenario")
     if mercenari:
         m = mercenari[0]
-        m["alive"] = False
+        _troop_falls(run, m, log)
         if random.random() < gd.MERCENARIO_SUCCESS_CHANCE:
             log.append("Il mercenario assorbe il colpo prima di fuggire.")
             return True, 0, log
@@ -255,8 +261,17 @@ def start_combat(run, tier):
         "enemy_slowed_turns": 0, "burn_turns": 0, "burn_dmg": 0,
         "evasion_turns": 0, "evasion_chance": 0.0,
         "raffica_potenziata": False, "enemy_weaken_turns": 0, "enemy_weaken_amount": 0,
+        "enemy_buff_stat": None, "enemy_buff_turns": 0,
+        "player_debuff_stat": None, "player_debuff_turns": 0,
+        "player_bleed_turns": 0, "player_bleed_dmg": 0, "player_bleed_target": None,
     }
     run["log"] = []
+    novizi = [m for m in run["seguito"] if m["alive"] and m["type"] == "novizio"]
+    if novizi:
+        run["combat"]["shield_physical_pool"] += gd.NOVIZIO_SHIELD_PHYSICAL
+        run["combat"]["shield_timore_pool"] += gd.NOVIZIO_SHIELD_TIMORE
+        _troop_falls(run, novizi[0], run["log"])
+        run["log"].append("Un Novizio si consuma per proteggerti: guadagni %d scudo Vita e %d scudo Timore." % (gd.NOVIZIO_SHIELD_PHYSICAL, gd.NOVIZIO_SHIELD_TIMORE))
     if tier == "boss" and run["class"] == "Esploratore":
         bonus_pv = round(run["leader"]["pv_max"] * 0.25)
         bonus_timore = round(run["leader"]["timore_max"] * 0.25)
@@ -272,6 +287,16 @@ def _leader_dmg(run):
     lo, hi = gd.CLASS_BASE_DMG.get(run["class"], (gd.BASE_DMG_MIN, gd.BASE_DMG_MAX))
     base = random.randint(lo, hi)
     return base + run["leader"]["dmg_bonus"] + run["temp_buffs"]["dmg"] + run["combat"].get("combat_dmg_bonus", 0)
+
+
+def _effective_defense(run, combat, stat):
+    """Armatura o Res. Mentale effettive del leader in questo combattimento: base +
+    oggetti/passive + bonus temporanei di combattimento, meno un eventuale debuff
+    nemico attivo su quella specifica statistica."""
+    base = run["leader"][stat] + run["temp_buffs"][stat] + combat.get("combat_%s_bonus" % stat, 0)
+    if combat.get("player_debuff_stat") == stat and combat.get("player_debuff_turns", 0) > 0:
+        base -= gd.ENEMY_DEBUFF_AMOUNT
+    return max(0, base)
 
 
 def _set_cooldown(run, ability_key):
@@ -357,7 +382,7 @@ def _apply_ability_action(run, ability_key):
         for m in vive:
             colpo = random.randint(8, 10)
             dmg_totale += colpo
-            m["alive"] = False
+            _troop_falls(run, m, log)
         log.append("Manovra a Tenaglia: sacrifichi %d membri del Seguito, infliggendo %d danni complessivi." % (len(vive), dmg_totale))
         return dmg_totale, 0, log, False
 
@@ -433,9 +458,9 @@ def _apply_ability_action(run, ability_key):
         vive = [m for m in run["seguito"] if m["alive"]]
         if vive:
             scelto = random.choice(vive)
-            scelto["alive"] = False
             nome = gd.ENTOURAGE_TYPES.get(scelto["type"], {}).get("name", scelto["type"])
             log.append("%s viene sacrificato nel rito." % nome)
+            _troop_falls(run, scelto, log)
         return dmg, timore_dmg, log, False
 
     if ability_key == "proteggimi":
@@ -580,7 +605,7 @@ def _apply_ability_action(run, ability_key):
                 residuo -= assorbito
                 combat["shield_physical_pool"] -= assorbito
                 log.append("Lo Scudo Magico assorbe %d danni fisici (%d rimasti nel serbatoio)." % (assorbito, combat["shield_physical_pool"]))
-            final_armor = run["leader"]["armor"] + run["temp_buffs"]["armor"] + combat.get("combat_armor_bonus", 0)
+            final_armor = _effective_defense(run, combat, "armor")
             dmg_leader = max(1, residuo - final_armor) if residuo > 0 else 0
             if dmg_leader > 0:
                 run["leader"]["pv"] -= dmg_leader
@@ -643,6 +668,33 @@ def resolve_combat_round(run, action_key):
             else:
                 log.append(msg)
 
+    vessilliferi = sum(1 for m in run["seguito"] if m["alive"] and m["type"] == "vessillifero")
+    if not escape and vessilliferi and dmg > 0:
+        dmg += vessilliferi
+        msg = "Vessillifero: lo stendardo issato incita il colpo, +%d danno." % vessilliferi
+        if ab_log is not None:
+            ab_log.append(msg)
+        else:
+            log.append(msg)
+
+    # iniziativa: chi agisce per primo nel round (l'arciere favorisce il leader; un nemico
+    # rallentato agisce sempre per ultimo, a prescindere da tutto il resto)
+    has_arciere = any(m["alive"] and m["type"] == "arciere" for m in run["seguito"])
+    if combat.get("enemy_slowed_turns", 0) > 0:
+        leader_first = True
+        combat["enemy_slowed_turns"] -= 1
+    else:
+        leader_first_chance = 0.75 if has_arciere else 0.5
+        leader_first = random.random() < leader_first_chance
+
+    if not escape and leader_first and has_arciere and dmg > 0:
+        dmg += gd.ARCIERE_DMG_BONUS
+        msg = "Arciere: una scarica di frecce di supporto aggiunge +%d danni al tuo colpo." % gd.ARCIERE_DMG_BONUS
+        if ab_log is not None:
+            ab_log.append(msg)
+        else:
+            log.append(msg)
+
     if action_key == "attacco_fisico":
         if run["class"] == "Esploratore":
             log.append("Attacco Preventivo: infliggi %d danni e guadagni 2 scudo fisico." % dmg)
@@ -665,6 +717,15 @@ def resolve_combat_round(run, action_key):
         if run["cooldowns"][k] > 0:
             run["cooldowns"][k] -= 1
 
+    if combat.get("enemy_buff_turns", 0) > 0:
+        combat["enemy_buff_turns"] -= 1
+        if combat["enemy_buff_turns"] <= 0:
+            combat["enemy_buff_stat"] = None
+    if combat.get("player_debuff_turns", 0) > 0:
+        combat["player_debuff_turns"] -= 1
+        if combat["player_debuff_turns"] <= 0:
+            combat["player_debuff_stat"] = None
+
     if combat.get("burn_turns", 0) > 0:
         combat["enemy_pv"] -= combat["burn_dmg"]
         combat["burn_turns"] -= 1
@@ -673,19 +734,31 @@ def resolve_combat_round(run, action_key):
             run["log"] = log
             return "vittoria"
 
-    # iniziativa: chi agisce per primo nel round (l'arciere favorisce il leader; un nemico
-    # rallentato agisce sempre per ultimo, a prescindere da tutto il resto)
-    if combat.get("enemy_slowed_turns", 0) > 0:
-        leader_first = True
-        combat["enemy_slowed_turns"] -= 1
-    else:
-        has_arciere = any(m["alive"] and m["type"] == "arciere" for m in run["seguito"])
-        leader_first_chance = 0.75 if has_arciere else 0.5
-        leader_first = random.random() < leader_first_chance
+    if combat.get("player_bleed_turns", 0) > 0:
+        bleed_dmg = combat.get("player_bleed_dmg", 0)
+        if combat.get("player_bleed_target") == "timore":
+            run["leader"]["timore"] -= bleed_dmg
+            log.append("Il sanguinamento logora la tua psiche: perdi %d Timore." % bleed_dmg)
+        else:
+            run["leader"]["pv"] -= bleed_dmg
+            log.append("Il sanguinamento ti costa %d Vita." % bleed_dmg)
+        combat["player_bleed_turns"] -= 1
+        if combat["player_bleed_turns"] <= 0:
+            combat["player_bleed_target"] = None
+        outcome = _check_defeat(run, log)
+        if outcome:
+            return outcome
 
     def apply_leader_damage_to_enemy():
-        phys = max(1, dmg - combat.get("enemy_armor", 0)) if dmg > 0 else 0
-        fear = max(1, timore_dmg - combat.get("enemy_mres", 0)) if timore_dmg > 0 else 0
+        enemy_armor = combat.get("enemy_armor", 0)
+        enemy_mres = combat.get("enemy_mres", 0)
+        if combat.get("enemy_buff_turns", 0) > 0:
+            if combat.get("enemy_buff_stat") == "armor":
+                enemy_armor += gd.ENEMY_BUFF_AMOUNT
+            elif combat.get("enemy_buff_stat") == "mres":
+                enemy_mres += gd.ENEMY_BUFF_AMOUNT
+        phys = max(1, dmg - enemy_armor) if dmg > 0 else 0
+        fear = max(1, timore_dmg - enemy_mres) if timore_dmg > 0 else 0
         combat["enemy_pv"] -= phys
         combat["enemy_timore"] -= fear
 
@@ -705,11 +778,13 @@ def resolve_combat_round(run, action_key):
             log.append("Agilità Felina: eviti agilmente il colpo del nemico.")
             return
 
-        # purificatore: cura passiva a inizio del turno di scambio
+        # purificatore/sciamano: cura passiva a inizio del turno di scambio
         heal_pv = 0
         heal_timore = 0
         if any(m["alive"] and m["type"] == "purificatore" for m in run["seguito"]):
             heal_pv += gd.PURIFICATORE_HEAL
+        if any(m["alive"] and m["type"] == "sciamano" for m in run["seguito"]):
+            heal_timore += gd.SCIAMANO_HEAL
         if has_ability(run, "bastione_della_fede") and "bastione_della_fede" in run.get("equipped_abilities", []):
             heal_pv += 2
         if run["class"] == "Diplomatico":
@@ -722,9 +797,73 @@ def resolve_combat_round(run, action_key):
             log.append("Cura passiva: recuperi %d Vita." % heal_pv)
         if heal_timore > 0:
             run["leader"]["timore"] = min(run["leader"]["timore_max"], run["leader"]["timore"] + heal_timore)
-            log.append("Pretoriani: il tuo Seguito ti infonde %d Timore." % heal_timore)
+            log.append("Il tuo Seguito ti infonde %d Timore." % heal_timore)
 
-        is_fear = random.random() < combat["fear_chance"]
+        # martello/ariete: non si consumano mai, colpiscono il nemico a ogni round
+        martelli = sum(1 for m in run["seguito"] if m["alive"] and m["type"] == "martello")
+        arieti = sum(1 for m in run["seguito"] if m["alive"] and m["type"] == "ariete")
+        enemy_armor_now = combat.get("enemy_armor", 0)
+        enemy_mres_now = combat.get("enemy_mres", 0)
+        if combat.get("enemy_buff_turns", 0) > 0:
+            if combat.get("enemy_buff_stat") == "armor":
+                enemy_armor_now += gd.ENEMY_BUFF_AMOUNT
+            elif combat.get("enemy_buff_stat") == "mres":
+                enemy_mres_now += gd.ENEMY_BUFF_AMOUNT
+        if martelli:
+            colpo = max(1, martelli * gd.MARTELLO_COUNTER_DMG - enemy_armor_now)
+            combat["enemy_pv"] -= colpo
+            log.append("I Compagni del Martello colpiscono per %d danni." % colpo)
+        if arieti:
+            colpo = max(1, arieti * gd.ARIETE_COUNTER_DMG - enemy_mres_now)
+            combat["enemy_timore"] -= colpo
+            log.append("L'Ariete incalza il Timore nemico per %d danni." % colpo)
+        if (martelli or arieti) and (combat["enemy_pv"] <= 0 or combat["enemy_timore"] <= 0):
+            return
+
+        archetype = combat.get("archetype", "equilibrato")
+
+        # "Si Riprende": il nemico ferito puo' curarsi invece di attaccare
+        if combat["enemy_pv"] < combat["enemy_pv_max"] * 0.5 and random.random() < gd.ENEMY_HEAL_CHANCE:
+            heal = random.randint(gd.ENEMY_HEAL_MIN, gd.ENEMY_HEAL_MAX)
+            combat["enemy_pv"] = min(combat["enemy_pv_max"], combat["enemy_pv"] + heal)
+            log.append("%s si riprende, recuperando %d PV." % (combat["name"], heal))
+            return
+
+        # Buff: rafforza la propria difesa per qualche turno (mai cumulabile)
+        if combat.get("enemy_buff_turns", 0) <= 0 and random.random() < gd.ENEMY_BUFF_CHANCE:
+            stat = {"fisico": "armor", "mentale": "mres"}.get(archetype) or random.choice(["armor", "mres"])
+            combat["enemy_buff_stat"] = stat
+            combat["enemy_buff_turns"] = gd.ENEMY_BUFF_TURNS
+            label = "Armatura" if stat == "armor" else "Res. Mentale"
+            log.append("%s si rafforza: +%d %s per %d turni." % (combat["name"], gd.ENEMY_BUFF_AMOUNT, label, gd.ENEMY_BUFF_TURNS))
+            return
+
+        # Debuff: indebolisce una tua statistica difensiva per qualche turno (mai cumulabile)
+        if combat.get("player_debuff_turns", 0) <= 0 and random.random() < gd.ENEMY_DEBUFF_CHANCE:
+            stat = {"fisico": "armor", "mentale": "mres"}.get(archetype) or random.choice(["armor", "mres"])
+            combat["player_debuff_stat"] = stat
+            combat["player_debuff_turns"] = gd.ENEMY_DEBUFF_TURNS
+            label = "Armatura" if stat == "armor" else "Res. Mentale"
+            log.append("%s ti indebolisce: -%d %s per %d turni." % (combat["name"], gd.ENEMY_DEBUFF_AMOUNT, label, gd.ENEMY_DEBUFF_TURNS))
+            return
+
+        # Sanguinamento: danno nel tempo, ai PV o al Timore a seconda dell'archetipo
+        if combat.get("player_bleed_turns", 0) <= 0 and random.random() < gd.ENEMY_BLEED_CHANCE:
+            target = {"fisico": "pv", "mentale": "timore"}.get(archetype) or random.choice(["pv", "timore"])
+            is_boss = combat.get("tier") == "boss"
+            bleed_dmg = gd.ENEMY_BLEED_DMG_BOSS if is_boss else random.randint(*gd.ENEMY_BLEED_DMG_NORMAL)
+            combat["player_bleed_turns"] = gd.ENEMY_BLEED_TURNS
+            combat["player_bleed_dmg"] = bleed_dmg
+            combat["player_bleed_target"] = target
+            nome_stat = "Vita" if target == "pv" else "Timore"
+            log.append("%s ti ferisce in profondità: sanguini, perdendo %d %s a turno per %d turni." %
+                        (combat["name"], bleed_dmg, nome_stat, gd.ENEMY_BLEED_TURNS))
+            return
+
+        fear_chance = combat["fear_chance"]
+        if any(m["alive"] and m["type"] == "bardo" for m in run["seguito"]):
+            fear_chance = max(0.0, fear_chance - gd.BARDO_FEAR_REDUCTION)
+        is_fear = random.random() < fear_chance
         if is_fear:
             base = random.randint(*combat["fear_dmg"]) if combat["fear_dmg"][1] > 0 else 0
             shield = combat.get("shield_reduction", 0)
@@ -738,7 +877,7 @@ def resolve_combat_round(run, action_key):
                 base -= assorbito
                 combat["shield_timore_pool"] -= assorbito
                 log.append("Lo Scudo Magico assorbe %d danni al Timore (%d rimasti nel serbatoio)." % (assorbito, combat["shield_timore_pool"]))
-            total_mres = run["leader"]["mres"] + run["temp_buffs"]["mres"] + combat.get("combat_mres_bonus", 0)
+            total_mres = _effective_defense(run, combat, "mres")
             reduced = max(1 if base > 0 else 0, base - total_mres)
             run["leader"]["timore"] -= reduced
             log.append("Il nemico attacca la tua psiche: perdi %d Timore." % reduced)
@@ -768,7 +907,7 @@ def resolve_combat_round(run, action_key):
                     residuo -= assorbito
                     combat["shield_physical_pool"] -= assorbito
                     log.append("Lo Scudo Magico assorbe %d danni fisici (%d rimasti nel serbatoio)." % (assorbito, combat["shield_physical_pool"]))
-                final_armor = run["leader"]["armor"] + run["temp_buffs"]["armor"] + combat.get("combat_armor_bonus", 0)
+                final_armor = _effective_defense(run, combat, "armor")
                 dmg_to_leader = max(1, residuo - final_armor) if residuo > 0 else 0
                 if dmg_to_leader > 0:
                     run["leader"]["pv"] -= dmg_to_leader
@@ -780,8 +919,14 @@ def resolve_combat_round(run, action_key):
             run["log"] = log
             return "vittoria"
         enemy_turn()
+        if combat["enemy_pv"] <= 0 or combat["enemy_timore"] <= 0:
+            run["log"] = log
+            return "vittoria"
     else:
         enemy_turn()
+        if combat["enemy_pv"] <= 0 or combat["enemy_timore"] <= 0:
+            run["log"] = log
+            return "vittoria"
         # controlli di sconfitta prima che il leader possa agire
         outcome = _check_defeat(run, log)
         if outcome:

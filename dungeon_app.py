@@ -20,6 +20,7 @@ except ImportError:
 app = Flask(__name__)
 app.jinja_env.globals["ROOMS_PER_RUN"] = gd.ROOMS_PER_RUN
 app.jinja_env.globals["CLASS_PASSIVES"] = gd.CLASS_PASSIVES
+app.jinja_env.globals["ENTOURAGE_TYPES"] = gd.ENTOURAGE_TYPES
 app.secret_key = os.environ.get("DUNGEON_SECRET_KEY", "cambia-questa-chiave-in-produzione")
 app.config["MAX_CONTENT_LENGTH"] = 3 * 1024 * 1024  # 3 MB, guardia contro upload enormi
 
@@ -225,8 +226,8 @@ def room_action():
         return redirect(url_for("run_end"))
 
     if ability_key == "vie_segrete":
-        run["room_index"] += 1
-        run["log"] = ["Vie Segrete: eviti del tutto questa stanza, proseguendo per sentieri nascosti."]
+        run["room_index"] = gd.ROOMS_PER_RUN
+        run["log"] = ["Vie Segrete: abbandoni il percorso consueto per sentieri nascosti, e ti ritrovi già davanti alla tana del miniboss."]
         session["run"] = run
         return render_template("room_result.html", run=run, log=run["log"], room_finished=True)
 
