@@ -67,6 +67,10 @@
   var stage = document.getElementById('duel-stage');
 
   function classify(text) {
+    // eventi automatici del Seguito/passivi: restano leggibili nel log ma non generano
+    // suono/animazione, altrimenti scattano ogni round sopra l'azione vera e propria
+    // e si accavallano.
+    if (/Compagni del Martello|L'Ariete incalza|Cura passiva:|Il tuo Seguito ti infonde|Penitente:/.test(text)) return null;
     if (/infliggi|colpiscono per|colpisce per|danni al nemico|danni fisici e|danni al Timore del nemico|critico/.test(text)) return 'hit_dealt';
     if (/Subisci|attacca la tua psiche|ti indebolisce|ti ferisce in profondità|sanguinamento|perdi /.test(text)) return 'hit_taken';
     if (/recuperi|ti infonde|si riprende/.test(text)) return 'heal';
@@ -100,24 +104,26 @@
     setTimeout(function() { sword.style.opacity = '0'; flash(target); }, 320);
   }
 
-  var delay = 450;
+  var delay = 500;
   var actionButtons = document.querySelectorAll('#action-buttons button[type=submit]');
   if (lines.length > 0) {
     actionButtons.forEach(function(b) { b.disabled = true; b.style.opacity = '0.5'; b.style.cursor = 'wait'; });
   }
   lines.forEach(function(line) {
-    setTimeout(function() {
-      var cue = classify(line);
-      if (cue === 'hit_dealt') { swing(player, enemy); if (window.SFX) SFX.play('hit_dealt'); }
-      else if (cue === 'hit_taken') { swing(enemy, player); if (window.SFX) SFX.play('hit_taken'); }
-      else if (cue === 'heal') { flash(player); if (window.SFX) SFX.play('heal'); }
-      else if (cue === 'shield') { if (window.SFX) SFX.play('shield'); }
-      var div = document.createElement('div');
-      div.textContent = line;
-      logEl.appendChild(div);
-      logEl.scrollTop = logEl.scrollHeight;
-    }, delay);
-    delay += 550;
+    var cue = classify(line);
+    (function(line, cue, atDelay) {
+      setTimeout(function() {
+        if (cue === 'hit_dealt') { swing(player, enemy); if (window.SFX) SFX.play('hit_dealt'); }
+        else if (cue === 'hit_taken') { swing(enemy, player); if (window.SFX) SFX.play('hit_taken'); }
+        else if (cue === 'heal') { flash(player); if (window.SFX) SFX.play('heal'); }
+        else if (cue === 'shield') { if (window.SFX) SFX.play('shield'); }
+        var div = document.createElement('div');
+        div.textContent = line;
+        logEl.appendChild(div);
+        logEl.scrollTop = logEl.scrollHeight;
+      }, atDelay);
+    })(line, cue, delay);
+    delay += cue ? 900 : 400;  // le righe "silenziose" (senza suono/animazione) avanzano piu' in fretta
   });
   setTimeout(function() {
     actionButtons.forEach(function(b) { b.disabled = false; b.style.opacity = ''; b.style.cursor = ''; });
