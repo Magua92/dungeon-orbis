@@ -1,11 +1,11 @@
 {% set l = run.leader %}
 <div class="panel-box">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
-    <div style="display:flex;align-items:center;gap:0.5rem">
-      {% if run.portrait_url %}<img src="{{ run.portrait_url }}" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:1px solid var(--border)">{% endif %}
+  <div style="display:flex;align-items:center;gap:0.7rem;margin-bottom:0.6rem">
+    {% if run.portrait_url %}<img src="{{ run.portrait_url }}" alt="" style="width:128px;height:128px;border-radius:50%;object-fit:cover;border:1px solid var(--border);flex-shrink:0">{% endif %}
+    <div>
       <strong>{{ run.name }}</strong>
+      <div style="font-size:0.8rem;opacity:0.75;margin-top:0.15rem">Liv. {{ run.level }} — Stanza {{ (run.room_index + 1) if run.room_index < ROOMS_PER_RUN else ROOMS_PER_RUN }}/{{ ROOMS_PER_RUN }}</div>
     </div>
-    <span style="font-size:0.8rem;opacity:0.75">Liv. {{ run.level }} — Stanza {{ (run.room_index + 1) if run.room_index < ROOMS_PER_RUN else ROOMS_PER_RUN }}/{{ ROOMS_PER_RUN }}</span>
   </div>
   <div class="bar-label"><span>❤️ Vita</span><span>{{ l.pv }} / {{ l.pv_max }}</span></div>
   <div class="bar-track"><div class="bar-fill pv" style="width:{{ (l.pv / l.pv_max * 100) | round | int }}%"></div></div>
