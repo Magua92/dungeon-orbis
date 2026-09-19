@@ -48,6 +48,10 @@ def init_db():
             name TEXT NOT NULL,
             PRIMARY KEY (faction, name)
         );
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        );
     """)
     conn.commit()
     # Migrazione: i DB creati prima di questa funzionalita' non hanno ancora la colonna.
@@ -55,6 +59,23 @@ def init_db():
     if "portrait" not in cols:
         conn.execute("ALTER TABLE characters ADD COLUMN portrait TEXT")
         conn.commit()
+    conn.close()
+
+
+def get_setting(key, default=None):
+    conn = get_conn()
+    row = conn.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
+    conn.close()
+    return row["value"] if row else default
+
+
+def set_setting(key, value):
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        (key, value)
+    )
+    conn.commit()
     conn.close()
 
 
@@ -126,6 +147,8 @@ def add_equipment(faction, name, item_id, timestamp):
 
 
 def is_run_locked(faction, name):
+    if get_setting("unlimited_runs") == "1":
+        return False
     conn = get_conn()
     row = conn.execute("SELECT 1 FROM run_lock WHERE faction=? AND name=?", (faction, name)).fetchone()
     conn.close()

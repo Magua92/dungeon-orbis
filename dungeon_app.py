@@ -520,11 +520,16 @@ def admin():
                         if os.path.exists(old_path):
                             os.remove(old_path)
                     db.delete_character(faction, name)
+            elif action == "toggle_unlimited":
+                current = db.get_setting("unlimited_runs") == "1"
+                db.set_setting("unlimited_runs", "0" if current else "1")
     locks = db.get_all_locks()
     characters = db.get_all_characters()
     for c in characters:
         c["level"] = engine.level_from_xp(c["xp"])
-    return render_template("admin.html", locks=locks, characters=characters, classes=gd.CLASSES, error=error)
+    unlimited_runs = db.get_setting("unlimited_runs") == "1"
+    return render_template("admin.html", locks=locks, characters=characters, classes=gd.CLASSES, error=error,
+                            unlimited_runs=unlimited_runs)
 
 
 if __name__ == "__main__":
