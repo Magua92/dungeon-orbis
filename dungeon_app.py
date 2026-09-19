@@ -19,6 +19,7 @@ except ImportError:
 
 app = Flask(__name__)
 app.jinja_env.globals["ROOMS_PER_RUN"] = gd.ROOMS_PER_RUN
+app.jinja_env.globals["CLASS_PASSIVES"] = gd.CLASS_PASSIVES
 app.secret_key = os.environ.get("DUNGEON_SECRET_KEY", "cambia-questa-chiave-in-produzione")
 app.config["MAX_CONTENT_LENGTH"] = 3 * 1024 * 1024  # 3 MB, guardia contro upload enormi
 

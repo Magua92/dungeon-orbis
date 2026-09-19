@@ -93,6 +93,7 @@ def new_run_state(faction, name, char_class, level, entourage_types, equip_item_
         "combat": None,  # stato del combattimento in corso (se presente)
         "finished": False,
         "result": None,  # 'vittoria' | 'ritirata_timore' | 'ritirata_morte'
+        "incudine_free_used": 0,  # Amministratore: "Abile nelle trattative"
     }
     return run
 
@@ -256,6 +257,12 @@ def start_combat(run, tier):
         "raffica_potenziata": False, "enemy_weaken_turns": 0, "enemy_weaken_amount": 0,
     }
     run["log"] = []
+    if tier == "boss" and run["class"] == "Esploratore":
+        bonus_pv = round(run["leader"]["pv_max"] * 0.25)
+        bonus_timore = round(run["leader"]["timore_max"] * 0.25)
+        run["combat"]["shield_physical_pool"] += bonus_pv
+        run["combat"]["shield_timore_pool"] += bonus_timore
+        run["log"].append("Sforzo Adrenalinico: il pericolo ti acuisce i sensi — guadagni %d scudo Vita e %d scudo Timore." % (bonus_pv, bonus_timore))
     if has_ability(run, "fiuto"):
         run["log"].append("🧭 Fiuto: percepisci la presenza di %s %s prima ancora di vederlo." % (icon, name))
     run["log"].append("%s %s emerge dall'ombra." % (icon, name))
@@ -615,6 +622,27 @@ def resolve_combat_round(run, action_key):
         else:
             log.append("Il fragore di Grido di Guerra raddoppia il colpo!")
 
+    if not escape and run["class"] == "Generale" and dmg > 0:
+        if run["leader"]["pv"] < run["leader"]["pv_max"] * 0.5 or run["leader"]["timore"] < run["leader"]["timore_max"] * 0.5:
+            dmg += 3
+            msg = "Ira Funesta: la disperazione acuisce il colpo, +3 danni."
+            if ab_log is not None:
+                ab_log.append(msg)
+            else:
+                log.append(msg)
+
+    if not escape and run["class"] == "Esploratore" and combat.get("tier") == "boss" and (dmg > 0 or timore_dmg > 0):
+        if random.random() < 0.10:
+            if dmg > 0:
+                dmg *= 2
+            if timore_dmg > 0:
+                timore_dmg *= 2
+            msg = "Sforzo Adrenalinico: colpo critico contro un avversario così pericoloso!"
+            if ab_log is not None:
+                ab_log.append(msg)
+            else:
+                log.append(msg)
+
     if action_key == "attacco_fisico":
         if run["class"] == "Esploratore":
             log.append("Attacco Preventivo: infliggi %d danni e guadagni 2 scudo fisico." % dmg)
@@ -678,14 +706,23 @@ def resolve_combat_round(run, action_key):
             return
 
         # purificatore: cura passiva a inizio del turno di scambio
-        heal = 0
+        heal_pv = 0
+        heal_timore = 0
         if any(m["alive"] and m["type"] == "purificatore" for m in run["seguito"]):
-            heal += gd.PURIFICATORE_HEAL
+            heal_pv += gd.PURIFICATORE_HEAL
         if has_ability(run, "bastione_della_fede") and "bastione_della_fede" in run.get("equipped_abilities", []):
-            heal += 2
-        if heal > 0:
-            run["leader"]["pv"] = min(run["leader"]["pv_max"], run["leader"]["pv"] + heal)
-            log.append("Cura passiva: recuperi %d Vita." % heal)
+            heal_pv += 2
+        if run["class"] == "Diplomatico":
+            vive = sum(1 for m in run["seguito"] if m["alive"])
+            if vive:
+                heal_pv += vive
+                heal_timore += vive
+        if heal_pv > 0:
+            run["leader"]["pv"] = min(run["leader"]["pv_max"], run["leader"]["pv"] + heal_pv)
+            log.append("Cura passiva: recuperi %d Vita." % heal_pv)
+        if heal_timore > 0:
+            run["leader"]["timore"] = min(run["leader"]["timore_max"], run["leader"]["timore"] + heal_timore)
+            log.append("Pretoriani: il tuo Seguito ti infonde %d Timore." % heal_timore)
 
         is_fear = random.random() < combat["fear_chance"]
         if is_fear:
@@ -816,6 +853,10 @@ def roll_loot(run, is_boss):
     run["treasure"][resource] = run["treasure"].get(resource, 0) + amount
     log = ["Bottino: +%d %s." % (amount, resource)]
 
+    if run["class"] == "Mago" and random.random() < 0.30:
+        run["treasure"]["gemme"] = run["treasure"].get("gemme", 0) + 1
+        log.append("Esperto Catalogatore: trovi anche 1 Gemma in più tra le spoglie.")
+
     guaranteed_gold = gd.GUARANTEED_GOLD_BOSS if is_boss else gd.GUARANTEED_GOLD_NORMAL
     if getattr(gd, "LOOT_LEVEL_SCALING", False):
         guaranteed_gold = round(guaranteed_gold * gd.level_factor(run["level"]))
@@ -857,7 +898,12 @@ def resolve_fontana(run):
 
 
 def incudine_cost(run):
-    return gd.INCUDINE_BASE_COST
+    base = gd.INCUDINE_BASE_COST
+    if run["class"] == "Amministratore":
+        free_budget = 2 if run["level"] >= 10 else 1
+        if run.get("incudine_free_used", 0) < free_budget:
+            return 0
+    return base
 
 
 def incudine_buff_amount(run):
@@ -869,9 +915,14 @@ def resolve_incudine(run, stat_choice):
     if run["treasure"].get("oro", 0) < cost:
         return ["Non hai abbastanza Oro: la Forgia resta silenziosa."]
     run["treasure"]["oro"] -= cost
+    is_free = cost == 0 and run["class"] == "Amministratore"
+    if is_free:
+        run["incudine_free_used"] = run.get("incudine_free_used", 0) + 1
     amount = incudine_buff_amount(run)
     run["temp_buffs"][stat_choice] = run["temp_buffs"].get(stat_choice, 0) + amount
     label = {"dmg": "Danno Fisico", "armor": "Armatura", "mres": "Resistenza Mentale"}[stat_choice]
+    if is_free:
+        return ["Abile nelle trattative: potenziamento gratuito alla Forgia — +%d %s per il resto della run." % (amount, label)]
     return ["Spendi %d Oro alla Forgia: +%d %s per il resto della run." % (cost, amount, label)]
 
 
