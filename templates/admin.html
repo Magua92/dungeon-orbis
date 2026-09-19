@@ -4,6 +4,37 @@
 {% if error %}<div class="error" style="text-align:center">{{ error }}</div>{% endif %}
 
 <div class="panel-box">
+  <h3>🎭 Personaggi registrati</h3>
+  {% if not characters %}<div style="opacity:0.7">Nessun personaggio ancora registrato.</div>{% endif %}
+  {% for c in characters %}
+  <div style="border-bottom:1px solid #4a3d2833;padding:0.6rem 0">
+    <form method="post" style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+      <span style="min-width:170px"><strong>{{ c.name }}</strong> ({{ c.faction }}) — Liv. {{ c.level }}</span>
+      <input type="hidden" name="action" value="edit_character">
+      <input type="hidden" name="faction" value="{{ c.faction }}">
+      <input type="hidden" name="name" value="{{ c.name }}">
+      <select name="new_class" style="font-size:0.8rem">
+        {% for cname in classes.keys() %}
+        <option value="{{ cname }}" {% if cname == c.class %}selected{% endif %}>{{ cname }}</option>
+        {% endfor %}
+      </select>
+      <input type="number" name="new_xp" value="{{ c.xp }}" min="0" style="width:90px;font-size:0.8rem" title="Esperienza (PE)">
+      <input type="password" name="password" placeholder="Password" style="width:110px;font-size:0.8rem">
+      <button type="submit" class="btn" style="padding:0.3rem 0.7rem;font-size:0.75rem">Salva</button>
+    </form>
+    <form method="post" style="display:flex;gap:0.5rem;align-items:center;margin-top:0.4rem"
+          onsubmit="return confirm('Eliminare definitivamente {{ c.name }} ({{ c.faction }})? Cancella anche equipaggiamento e storico spedizioni. Non si può annullare.');">
+      <input type="hidden" name="action" value="delete_character">
+      <input type="hidden" name="faction" value="{{ c.faction }}">
+      <input type="hidden" name="name" value="{{ c.name }}">
+      <input type="password" name="password" placeholder="Password" style="width:110px;font-size:0.8rem">
+      <button type="submit" class="btn" style="padding:0.3rem 0.7rem;font-size:0.75rem;border-color:#8c2a2a;color:#e08a8a">Elimina personaggio</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="panel-box">
   <h3>Personaggi attualmente bloccati</h3>
   {% if not locks %}<div style="opacity:0.7">Nessun blocco attivo.</div>{% endif %}
   {% for l in locks %}
