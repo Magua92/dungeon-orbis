@@ -5,6 +5,7 @@ nessuna scrittura su factions.json — i risultati vanno applicati a mano dal Ma
 dopo aver letto il riepilogo (anche mandato su Discord via webhook, se configurato)."""
 import os
 import datetime
+from werkzeug.utils import secure_filename
 from flask import Flask, request, session, redirect, url_for, render_template
 
 import db
@@ -19,6 +20,42 @@ except ImportError:
 app = Flask(__name__)
 app.jinja_env.globals["ROOMS_PER_RUN"] = gd.ROOMS_PER_RUN
 app.secret_key = os.environ.get("DUNGEON_SECRET_KEY", "cambia-questa-chiave-in-produzione")
+app.config["MAX_CONTENT_LENGTH"] = 3 * 1024 * 1024  # 3 MB, guardia contro upload enormi
+
+# Ritratti dei personaggi (caricati dai giocatori): salvati qui, un file per personaggio.
+PORTRAIT_DIR = os.path.join(app.static_folder, "portraits")
+os.makedirs(PORTRAIT_DIR, exist_ok=True)
+ALLOWED_PORTRAIT_EXT = {"png", "jpg", "jpeg", "webp"}
+
+# Ritratti dei mostri (preparati a mano da Amedeo): static/monsters/<slug_nome>.png|jpg|webp
+MONSTER_PORTRAIT_DIR = os.path.join(app.static_folder, "monsters")
+
+
+def _portrait_filename(faction, name, ext):
+    slug = secure_filename(("%s_%s" % (faction, name)).lower().replace(" ", "_"))
+    return "%s.%s" % (slug, ext)
+
+
+def _portrait_url(faction, name, filename):
+    """URL del ritratto di un personaggio, con parametro anti-cache basato sulla data
+    di modifica del file, oppure None se non ne ha ancora caricato uno."""
+    if not filename:
+        return None
+    path = os.path.join(PORTRAIT_DIR, filename)
+    if not os.path.exists(path):
+        return None
+    return url_for("static", filename="portraits/" + filename) + "?v=%d" % int(os.path.getmtime(path))
+
+
+def _monster_portrait_url(enemy_name):
+    """Cerca static/monsters/<slug>.{png,jpg,jpeg,webp}; se non lo trova, il template
+    ricade sull'emoji del pool come faceva finora."""
+    slug = gd.slugify(enemy_name)
+    for ext in ALLOWED_PORTRAIT_EXT:
+        rel = "monsters/%s.%s" % (slug, ext)
+        if os.path.exists(os.path.join(app.static_folder, rel)):
+            return url_for("static", filename=rel)
+    return None
 
 # Config: incolla qui l'URL del webhook Discord dedicato (o lascialo vuoto per disattivare l'invio)
 DISCORD_WEBHOOK_URL = os.environ.get("DUNGEON_DISCORD_WEBHOOK", "")
@@ -99,7 +136,31 @@ def prepare():
         uses_loadout=uses_loadout, active_abilities=active_abilities,
         ability_loadout_size=gd.ABILITY_LOADOUT_SIZE, entourage_bonus_map=entourage_bonus_map,
         has_strumenti=has_strumenti, owned_ids=owned_ids,
+        portrait_url=_portrait_url(faction, name, char.get("portrait")),
     )
+
+
+@app.route("/upload_portrait", methods=["POST"])
+def upload_portrait():
+    faction = request.form.get("faction")
+    name = request.form.get("name")
+    char = db.get_character(faction, name)
+    if not char:
+        return redirect(url_for("home"))
+    file = request.files.get("portrait")
+    if file and file.filename and "." in file.filename:
+        ext = file.filename.rsplit(".", 1)[-1].lower()
+        if ext in ALLOWED_PORTRAIT_EXT:
+            # rimuove un eventuale ritratto precedente con estensione diversa, cosi' non
+            # restano file orfani se il giocatore cambia formato tra un caricamento e l'altro
+            for old_ext in ALLOWED_PORTRAIT_EXT:
+                old_path = os.path.join(PORTRAIT_DIR, _portrait_filename(faction, name, old_ext))
+                if os.path.exists(old_path):
+                    os.remove(old_path)
+            filename = _portrait_filename(faction, name, ext)
+            file.save(os.path.join(PORTRAIT_DIR, filename))
+            db.set_portrait(faction, name, filename)
+    return redirect(url_for("prepare", faction=faction, name=name))
 
 
 @app.route("/start_run", methods=["POST"])
@@ -138,6 +199,7 @@ def start_run():
             equip_ids.append(item_id)
 
     run = engine.new_run_state(faction, name, char["class"], level, entourage, equip_ids, equipped_abilities)
+    run["portrait_url"] = _portrait_url(faction, name, char.get("portrait"))
     session["run"] = run
     return redirect(url_for("room"))
 
@@ -237,7 +299,8 @@ def combat():
         return redirect(url_for("room"))
     actions = engine.all_combat_abilities(run)
     is_boss = run["combat"]["tier"] == "boss"
-    return render_template("combat.html", run=run, actions=actions, is_boss=is_boss)
+    return render_template("combat.html", run=run, actions=actions, is_boss=is_boss,
+                            enemy_portrait_url=_monster_portrait_url(run["combat"]["name"]))
 
 
 @app.route("/combat/act", methods=["POST"])
@@ -304,7 +367,8 @@ def miniboss():
         engine.start_combat(run, "boss")
         session["run"] = run
     actions = engine.all_combat_abilities(run)
-    return render_template("combat.html", run=run, actions=actions, is_boss=True, is_miniboss_intro=True)
+    return render_template("combat.html", run=run, actions=actions, is_boss=True, is_miniboss_intro=True,
+                            enemy_portrait_url=_monster_portrait_url(run["combat"]["name"]))
 
 
 @app.route("/run_end")

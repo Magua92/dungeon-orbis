@@ -236,11 +236,14 @@ def _seguito_absorb(run, incoming_dmg):
 # ─── COMBATTIMENTO ────────────────────────────────────────────────────────
 def start_combat(run, tier):
     """tier: 1..N per stanze normali, 'boss' per il miniboss."""
-    data = gd.get_boss_tier(gd.ROOMS_PER_RUN) if tier == "boss" else gd.get_enemy_tier(tier)
-    name, icon = random.choice(data["pool"])
+    level = run["level"]
+    data = gd.get_boss_tier(gd.ROOMS_PER_RUN, level) if tier == "boss" else gd.get_enemy_tier(tier, level)
+    name, icon, archetype = random.choice(data["pool"])
+    enemy_armor, enemy_mres = gd.enemy_defense(archetype, level)
     run["cooldowns"] = {}  # i cooldown si resettano a ogni nuovo combattimento, non durano tutta la run
     run["combat"] = {
-        "tier": tier, "name": name, "icon": icon,
+        "tier": tier, "name": name, "icon": icon, "archetype": archetype,
+        "enemy_armor": enemy_armor, "enemy_mres": enemy_mres,
         "enemy_pv": data["pv"], "enemy_pv_max": data["pv"],
         "enemy_timore": data["pv"], "enemy_timore_max": data["pv"],
         "dmg": data["dmg"], "fear_chance": data["fear_chance"], "fear_dmg": data["fear_dmg"],
@@ -637,8 +640,10 @@ def resolve_combat_round(run, action_key):
         leader_first = random.random() < leader_first_chance
 
     def apply_leader_damage_to_enemy():
-        combat["enemy_pv"] -= dmg
-        combat["enemy_timore"] -= timore_dmg
+        phys = max(1, dmg - combat.get("enemy_armor", 0)) if dmg > 0 else 0
+        fear = max(1, timore_dmg - combat.get("enemy_mres", 0)) if timore_dmg > 0 else 0
+        combat["enemy_pv"] -= phys
+        combat["enemy_timore"] -= fear
 
     def enemy_turn():
         if combat.get("enemy_stunned", 0) > 0:
@@ -784,6 +789,8 @@ def roll_loot(run, is_boss):
     resource = random.choice(gd.RESOURCE_TYPES)
     lo, hi = gd.BOSS_LOOT_AMOUNT if is_boss else gd.NORMAL_LOOT_AMOUNT
     amount = random.randint(lo, hi)
+    if getattr(gd, "LOOT_LEVEL_SCALING", False):
+        amount = round(amount * gd.level_factor(run["level"]))
     if run["class"] == "Esploratore" and run["level"] >= 5:
         amount = int(amount * 1.5)
     equipped = run.get("equipped_abilities", [])
@@ -794,6 +801,8 @@ def roll_loot(run, is_boss):
     log = ["Bottino: +%d %s." % (amount, resource)]
 
     guaranteed_gold = gd.GUARANTEED_GOLD_BOSS if is_boss else gd.GUARANTEED_GOLD_NORMAL
+    if getattr(gd, "LOOT_LEVEL_SCALING", False):
+        guaranteed_gold = round(guaranteed_gold * gd.level_factor(run["level"]))
     if raddoppio:
         guaranteed_gold *= 2
     if resource != "oro":

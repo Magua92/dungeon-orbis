@@ -134,42 +134,74 @@ ABILITY_LOADOUT_SIZE = 4  # quante abilita' (Attacco incluso) si possono avere e
 # livello di difficolta'. Le statistiche invece sono calcolate con una formula (get_enemy_tier),
 # cosi' funzionano per qualunque numero di stanze senza dover riscrivere una tabella a mano.
 ENEMY_POOLS = {
-    1: [("Goblin Razziatore", "👺"), ("Cane Selvatico", "🐺"), ("Predone Solitario", "🗡️"),
-        ("Ratto Colossale", "🐀"), ("Corvo Malato", "🐦")],
-    2: [("Orco Sbandato", "👹"), ("Sciacallo delle Rovine", "🦴"), ("Predone Armato", "🗡️"),
-        ("Goblin Sciamano", "👺"), ("Cinghiale Furioso", "🐗")],
-    3: [("Ombra Vagante", "👻"), ("Bandito Esperto", "🗡️"), ("Orco Guerriero", "👹"),
-        ("Troll delle Paludi", "🧌"), ("Nano Spergiuro", "🪓")],
-    4: [("Spettro del Confine", "👹"), ("Fauna Corrotta", "🐗"), ("Draugr Risvegliato", "💀"),
-        ("Purificatore Eretico", "✨"), ("Troll da Guerra", "🧌")],
-    5: [("Cavaliere Caduto", "💀"), ("Orrore Nebbioso", "👁️"), ("Colosso di Pietra", "🗿"),
-        ("Orco Ancestrale", "👹"), ("Nano Spergiuro Anziano", "🪓")],
-    6: [("Draugr Ancestrale", "💀"), ("Purificatore Eretico Superiore", "✨"), ("Colosso Runico", "🗿"),
-        ("Troll delle Cime", "🧌"), ("Ombra Ancestrale", "👻")],
-    7: [("Colosso di Guerra", "🗿"), ("Draugr Signore", "💀"), ("Orco Sovrano", "👹"),
-        ("Purificatore Eretico Supremo", "✨"), ("Nano Spergiuro Maledetto", "🪓")],
+    1: [("Goblin Razziatore", "👺", "equilibrato"), ("Cane Selvatico", "🐺", "fisico"), ("Predone Solitario", "🗡️", "equilibrato"),
+        ("Ratto Colossale", "🐀", "fisico"), ("Corvo Malato", "🐦", "mentale")],
+    2: [("Orco Sbandato", "👹", "fisico"), ("Sciacallo delle Rovine", "🦴", "fisico"), ("Predone Armato", "🗡️", "equilibrato"),
+        ("Goblin Sciamano", "👺", "mentale"), ("Cinghiale Furioso", "🐗", "fisico")],
+    3: [("Ombra Vagante", "👻", "mentale"), ("Bandito Esperto", "🗡️", "equilibrato"), ("Orco Guerriero", "👹", "fisico"),
+        ("Troll delle Paludi", "🧌", "fisico"), ("Nano Spergiuro", "🪓", "equilibrato")],
+    4: [("Spettro del Confine", "👹", "mentale"), ("Fauna Corrotta", "🐗", "fisico"), ("Draugr Risvegliato", "💀", "mentale"),
+        ("Purificatore Eretico", "✨", "mentale"), ("Troll da Guerra", "🧌", "fisico")],
+    5: [("Cavaliere Caduto", "💀", "equilibrato"), ("Orrore Nebbioso", "👁️", "mentale"), ("Colosso di Pietra", "🗿", "fisico"),
+        ("Orco Ancestrale", "👹", "fisico"), ("Nano Spergiuro Anziano", "🪓", "equilibrato")],
+    6: [("Draugr Ancestrale", "💀", "mentale"), ("Purificatore Eretico Superiore", "✨", "mentale"), ("Colosso Runico", "🗿", "fisico"),
+        ("Troll delle Cime", "🧌", "fisico"), ("Ombra Ancestrale", "👻", "mentale")],
+    7: [("Colosso di Guerra", "🗿", "fisico"), ("Draugr Signore", "💀", "mentale"), ("Orco Sovrano", "👹", "fisico"),
+        ("Purificatore Eretico Supremo", "✨", "mentale"), ("Nano Spergiuro Maledetto", "🪓", "equilibrato")],
 }
-BOSS_POOL = [("Il Signore delle Rovine", "👑"), ("Il Colosso Corrotto", "🗿"),
-             ("Il Re-Ombra", "👻"), ("Lo Spergiuro Eterno", "🪓")]
+BOSS_POOL = [("Il Signore delle Rovine", "👑", "equilibrato"), ("Il Colosso Corrotto", "🗿", "fisico"),
+             ("Il Re-Ombra", "👻", "mentale"), ("Lo Spergiuro Eterno", "🪓", "equilibrato")]
 
 
-def get_enemy_tier(n):
-    """Statistiche del nemico per la stanza n (1-based), calcolate con una formula cosi'
-    da poter cambiare ROOMS_PER_RUN senza dover riscrivere una tabella a mano. Il pool dei
-    nomi usa il tier piu' alto disponibile se n supera quelli definiti in ENEMY_POOLS."""
+def slugify(text):
+    """'Purificatore Eretico' -> 'purificatore_eretico', per far combaciare il nome del
+    nemico col file immagine in static/monsters/<slug>.png (o .jpg/.webp)."""
+    import re
+    import unicodedata
+    text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    return re.sub(r"[^a-zA-Z0-9]+", "_", text).strip("_").lower()
+
+
+def level_factor(level):
+    """Usato per le RICOMPENSE (bottino/oro): +8% per livello oltre il primo."""
+    return 1 + (level - 1) * 0.08
+
+
+def enemy_power_factor(level):
+    """Usato per PV/danno NEMICI: cresce piu' lentamente delle ricompense, cosi' il
+    livello resta vantaggioso in senso assoluto (piu' bottino, nemici solo un po' piu' duri)."""
+    return 1 + (level - 1) * 0.045
+
+
+def enemy_defense(archetype, level):
+    """Armatura/Resistenza Mentale del nemico in base al suo archetipo e al livello del
+    personaggio (le difese nemiche crescono col potere del party, non con la stanza).
+    Valori ridotti di 1/3 rispetto alla formula grezza, per non essere troppo punitivi."""
+    if archetype == "fisico":
+        raw_armor, raw_mres = 2 + level // 3, level // 6
+    elif archetype == "mentale":
+        raw_armor, raw_mres = level // 6, 2 + level // 3
+    else:  # equilibrato
+        raw_armor = raw_mres = 1 + level // 4
+    return round(raw_armor * 2 / 3), round(raw_mres * 2 / 3)
+
+
+def get_enemy_tier(n, level=1):
+    """Statistiche del nemico per la stanza n (1-based) e il livello del personaggio."""
     pool = ENEMY_POOLS.get(n, ENEMY_POOLS[max(ENEMY_POOLS.keys())])
-    pv = 8 + 2 * (n - 1)
-    dmg_min = 2 + (n - 1) // 3
-    dmg_max = 4 + (n - 1) // 2
+    f = enemy_power_factor(level)
+    pv = round((8 + 2 * (n - 1)) * f)
+    dmg_min = round((2 + (n - 1) // 3) * f)
+    dmg_max = round((4 + (n - 1) // 2) * f)
     fear_chance = max(0.0, min(0.6, (n - 2) * 0.12))
     fear_dmg = (dmg_min + 1, dmg_max + 1) if fear_chance > 0 else (0, 0)
     return {"pv": pv, "dmg": (dmg_min, dmg_max), "fear_chance": fear_chance, "fear_dmg": fear_dmg, "pool": pool}
 
 
-def get_boss_tier(rooms_per_run):
-    """Il miniboss scala in base al numero di stanze della run (piu' stanze = nemico finale
-    piu' duro), sempre circa 1.75x le PV dell'ultima stanza normale."""
-    last = get_enemy_tier(rooms_per_run)
+def get_boss_tier(rooms_per_run, level=1):
+    """Il miniboss scala in base al numero di stanze della run e al livello del personaggio,
+    sempre circa 1.75x le PV dell'ultima stanza normale."""
+    last = get_enemy_tier(rooms_per_run, level)
     pv = int(last["pv"] * 1.75)
     dmg = (last["dmg"][0] + 2, last["dmg"][1] + 3)
     return {"pv": pv, "dmg": dmg, "fear_chance": 0.5, "fear_dmg": (dmg[0], dmg[1]), "pool": BOSS_POOL}
@@ -231,3 +263,4 @@ ITEMS = {
 }
 
 EQUIP_SLOTS = ["slot_arma", "slot_armatura", "slot_jolly"]  # jolly: arma o armatura, a scelta
+LOOT_LEVEL_SCALING = True  # se True, roll_loot() applica level_factor() al bottino

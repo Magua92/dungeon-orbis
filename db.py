@@ -23,6 +23,7 @@ def init_db():
             name TEXT NOT NULL,
             class TEXT NOT NULL,
             xp INTEGER NOT NULL DEFAULT 0,
+            portrait TEXT,
             PRIMARY KEY (faction, name)
         );
         CREATE TABLE IF NOT EXISTS equipment_owned (
@@ -48,6 +49,18 @@ def init_db():
             PRIMARY KEY (faction, name)
         );
     """)
+    conn.commit()
+    # Migrazione: i DB creati prima di questa funzionalita' non hanno ancora la colonna.
+    cols = [r["name"] for r in conn.execute("PRAGMA table_info(characters)").fetchall()]
+    if "portrait" not in cols:
+        conn.execute("ALTER TABLE characters ADD COLUMN portrait TEXT")
+        conn.commit()
+    conn.close()
+
+
+def set_portrait(faction, name, filename):
+    conn = get_conn()
+    conn.execute("UPDATE characters SET portrait=? WHERE faction=? AND name=?", (filename, faction, name))
     conn.commit()
     conn.close()
 
