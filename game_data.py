@@ -201,6 +201,29 @@ ENEMY_BLEED_TURNS = 3
 ENEMY_BLEED_DMG_NORMAL = (1, 2)  # per turno, nemici normali
 ENEMY_BLEED_DMG_BOSS = 3         # per turno, solo boss/miniboss
 
+# ─── BOSS SPECIALI (incontri unici, non nel pool casuale) ───────────────────
+# Compaiono con una probabilita' propria quando si genera il miniboss di una run,
+# al posto del solito pescaggio casuale da BOSS_POOL. Ognuno ha un moveset dedicato
+# gestito a parte in engine.py (non usa il sistema generico cura/buff/debuff/sanguinamento).
+IL_DIAULO = {
+    "name": "IL DIAULO",
+    "icon": "😈",
+    "spawn_chance": 0.20,
+    "armor": 2,
+    "mres": 3,
+    "dmg_timore_base": (8, 11),   # attacco base, danno al Timore
+    "penetrazione_mres": 2,       # riduce la Res. Mentale effettiva SOLO per l'attacco base
+    "veleno_dmg": 3,
+    "veleno_turni": 3,
+    "amico_rettiliani_chance": 0.35,
+    "amico_rettiliani_dmg": (6, 8),        # fisico
+    "amico_rettiliani_dmg_timore": (6, 8), # Timore
+    "buttacettete_chance": 0.15,
+    "buttacettete_dmg": (10, 16),
+    "buttacettete_contraccolpo": (6, 8),
+    "sfx_prefix": "il_diaulo_",  # static/sfx/il_diaulo_hit_dealt_1.mp3, ecc.
+}
+
 
 def enemy_defense(archetype, level):
     """Armatura/Resistenza Mentale del nemico in base al suo archetipo e al livello del

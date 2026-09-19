@@ -244,12 +244,24 @@ def _seguito_absorb(run, incoming_dmg):
 def start_combat(run, tier):
     """tier: 1..N per stanze normali, 'boss' per il miniboss."""
     level = run["level"]
-    data = gd.get_boss_tier(gd.ROOMS_PER_RUN, level) if tier == "boss" else gd.get_enemy_tier(tier, level)
-    name, icon, archetype = random.choice(data["pool"])
-    enemy_armor, enemy_mres = gd.enemy_defense(archetype, level)
+    special_boss = None
+    if tier == "boss":
+        data = gd.get_boss_tier(gd.ROOMS_PER_RUN, level)
+        if random.random() < gd.IL_DIAULO["spawn_chance"]:
+            special_boss = "il_diaulo"
+            name, icon = gd.IL_DIAULO["name"], gd.IL_DIAULO["icon"]
+            archetype = "il_diaulo"
+            enemy_armor, enemy_mres = gd.IL_DIAULO["armor"], gd.IL_DIAULO["mres"]
+        else:
+            name, icon, archetype = random.choice(data["pool"])
+            enemy_armor, enemy_mres = gd.enemy_defense(archetype, level)
+    else:
+        data = gd.get_enemy_tier(tier, level)
+        name, icon, archetype = random.choice(data["pool"])
+        enemy_armor, enemy_mres = gd.enemy_defense(archetype, level)
     run["cooldowns"] = {}  # i cooldown si resettano a ogni nuovo combattimento, non durano tutta la run
     run["combat"] = {
-        "tier": tier, "name": name, "icon": icon, "archetype": archetype,
+        "tier": tier, "name": name, "icon": icon, "archetype": archetype, "special_boss": special_boss,
         "enemy_armor": enemy_armor, "enemy_mres": enemy_mres,
         "enemy_pv": data["pv"], "enemy_pv_max": data["pv"],
         "enemy_timore": data["pv"], "enemy_timore_max": data["pv"],
@@ -264,8 +276,11 @@ def start_combat(run, tier):
         "enemy_buff_stat": None, "enemy_buff_turns": 0,
         "player_debuff_stat": None, "player_debuff_turns": 0,
         "player_bleed_turns": 0, "player_bleed_dmg": 0, "player_bleed_target": None,
+        "diaulo_signore_cd": 0,
     }
     run["log"] = []
+    if special_boss == "il_diaulo":
+        run["log"].append("IL DIAULO emerge dalle ombre, e il tuo Timore trema solo a guardarlo.")
     novizi = [m for m in run["seguito"] if m["alive"] and m["type"] == "novizio"]
     if novizi:
         run["combat"]["shield_physical_pool"] += gd.NOVIZIO_SHIELD_PHYSICAL
@@ -297,6 +312,96 @@ def _effective_defense(run, combat, stat):
     if combat.get("player_debuff_stat") == stat and combat.get("player_debuff_turns", 0) > 0:
         base -= gd.ENEMY_DEBUFF_AMOUNT
     return max(0, base)
+
+
+def _il_diaulo_deal_damage(run, combat, log, phys, timore_amt):
+    """Infligge danno di IL DIAULO al leader con la stessa mitigazione (scudo di
+    Formazione Difensiva, Scudo Magico, Armatura/Res. Mentale) usata per un attacco
+    nemico normale — cosi' le sue mosse "grezze" (non il veleno, che bypassa tutto
+    di proposito) restano coerenti col resto del gioco."""
+    if phys > 0:
+        residuo = phys
+        shield = combat.get("shield_reduction", 0)
+        if shield and residuo > 0:
+            residuo = max(0, residuo - shield)
+            combat["shield_reduction"] = 0
+            log.append("Lo scudo di Formazione Difensiva attutisce il colpo.")
+        pool = combat.get("shield_physical_pool", 0)
+        if pool and residuo > 0:
+            assorbito = min(pool, residuo)
+            residuo -= assorbito
+            combat["shield_physical_pool"] -= assorbito
+            log.append("Lo Scudo Magico assorbe %d danni fisici (%d rimasti nel serbatoio)." % (assorbito, combat["shield_physical_pool"]))
+        final_armor = _effective_defense(run, combat, "armor")
+        dmg_to_leader = max(1, residuo - final_armor) if residuo > 0 else 0
+        if dmg_to_leader > 0:
+            run["leader"]["pv"] -= dmg_to_leader
+            log.append("Subisci %d danni fisici." % dmg_to_leader)
+    if timore_amt > 0:
+        residuo_t = timore_amt
+        pool_t = combat.get("shield_timore_pool", 0)
+        if pool_t and residuo_t > 0:
+            assorbito_t = min(pool_t, residuo_t)
+            residuo_t -= assorbito_t
+            combat["shield_timore_pool"] -= assorbito_t
+            log.append("Lo Scudo Magico assorbe %d danni al Timore (%d rimasti nel serbatoio)." % (assorbito_t, combat["shield_timore_pool"]))
+        total_mres = _effective_defense(run, combat, "mres")
+        timore_to_leader = max(1, residuo_t - total_mres) if residuo_t > 0 else 0
+        if timore_to_leader > 0:
+            run["leader"]["timore"] -= timore_to_leader
+            log.append("Il tuo Timore scende di %d." % timore_to_leader)
+
+
+def _il_diaulo_turn(run, combat, log):
+    """Moveset dedicato di IL DIAULO, boss speciale (20% di comparire al posto del
+    miniboss casuale). Sostituisce del tutto la logica generica (cura/buff/debuff/
+    sanguinamento) quando e' lui il nemico attivo."""
+    spec = gd.IL_DIAULO
+    has_shield = combat.get("shield_physical_pool", 0) > 0 or combat.get("shield_timore_pool", 0) > 0
+
+    if has_shield and combat.get("diaulo_signore_cd", 0) <= 0:
+        removed_phys = combat.get("shield_physical_pool", 0)
+        removed_timore = combat.get("shield_timore_pool", 0)
+        combat["shield_physical_pool"] = 0
+        combat["shield_timore_pool"] = 0
+        combat["enemy_pv"] = min(combat["enemy_pv_max"], combat["enemy_pv"] + removed_phys)
+        combat["enemy_timore"] = min(combat["enemy_timore_max"], combat["enemy_timore"] + removed_timore)
+        combat["diaulo_signore_cd"] = 8
+        log.append("Signore Oscuro: IL DIAULO dissolve i tuoi scudi (-%d Vita, -%d Timore) e ne assorbe l'energia, curandosene per lo stesso ammontare." % (removed_phys, removed_timore))
+        return
+
+    roll = random.random()
+    if roll < spec["amico_rettiliani_chance"]:
+        dmg = random.randint(*spec["amico_rettiliani_dmg"])
+        timore_dmg = random.randint(*spec["amico_rettiliani_dmg_timore"])
+        _il_diaulo_deal_damage(run, combat, log, dmg, timore_dmg)
+        combat["player_bleed_turns"] = spec["veleno_turni"]
+        combat["player_bleed_dmg"] = spec["veleno_dmg"]
+        combat["player_bleed_target"] = "pv"
+        log.append("Amico dei Rettiliani: IL DIAULO inietta un veleno che drena %d PV a turno per %d turni (ignora armatura e scudi)." % (spec["veleno_dmg"], spec["veleno_turni"]))
+        return
+    elif roll < spec["amico_rettiliani_chance"] + spec["buttacettete_chance"]:
+        dmg = random.randint(*spec["buttacettete_dmg"])
+        contraccolpo = random.randint(*spec["buttacettete_contraccolpo"])
+        log.append("Buttacettete: IL DIAULO carica e si schianta su di te.")
+        _il_diaulo_deal_damage(run, combat, log, dmg, 0)
+        combat["enemy_pv"] -= contraccolpo
+        log.append("Lo schianto gli costa %d danni di contraccolpo." % contraccolpo)
+        return
+    else:
+        dmg_timore = random.randint(*spec["dmg_timore_base"])
+        eff_mres = max(0, _effective_defense(run, combat, "mres") - spec["penetrazione_mres"])
+        pool_t = combat.get("shield_timore_pool", 0)
+        residuo_t = dmg_timore
+        if pool_t and residuo_t > 0:
+            assorbito_t = min(pool_t, residuo_t)
+            residuo_t -= assorbito_t
+            combat["shield_timore_pool"] -= assorbito_t
+            log.append("Lo Scudo Magico assorbe %d danni al Timore (%d rimasti nel serbatoio)." % (assorbito_t, combat["shield_timore_pool"]))
+        finale = max(1, residuo_t - eff_mres) if residuo_t > 0 else 0
+        if finale > 0:
+            run["leader"]["timore"] -= finale
+            log.append("IL DIAULO sussurra il tuo nome: perdi %d Timore (penetra %d Res. Mentale)." % (finale, spec["penetrazione_mres"]))
 
 
 def _set_cooldown(run, ability_key):
@@ -717,6 +822,9 @@ def resolve_combat_round(run, action_key):
         if run["cooldowns"][k] > 0:
             run["cooldowns"][k] -= 1
 
+    if combat.get("diaulo_signore_cd", 0) > 0:
+        combat["diaulo_signore_cd"] -= 1
+
     if combat.get("enemy_buff_turns", 0) > 0:
         combat["enemy_buff_turns"] -= 1
         if combat["enemy_buff_turns"] <= 0:
@@ -776,6 +884,10 @@ def resolve_combat_round(run, action_key):
 
         if "agilita_felina" in run.get("equipped_abilities", []) and random.random() < 0.2:
             log.append("Agilità Felina: eviti agilmente il colpo del nemico.")
+            return
+
+        if combat.get("special_boss") == "il_diaulo":
+            _il_diaulo_turn(run, combat, log)
             return
 
         # purificatore/sciamano: cura passiva a inizio del turno di scambio
