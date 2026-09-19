@@ -48,7 +48,8 @@ window.SFX = (function() {
   // Quanti file reali esistono per categoria in static/sfx/ (es. hit_dealt_1.mp3,
   // hit_dealt_2.mp3, ...). Metti qui il numero giusto quando ne aggiungi/togli:
   // a 0 quella categoria usa il suono sintetizzato come prima, di riserva.
-  var VARIANT_COUNTS = { hit_dealt: 5, hit_taken: 4, heal: 1, shield: 1, victory: 1, defeat: 1 };
+  var VARIANT_COUNTS = { hit_dealt: 5, hit_taken: 4, heal: 1, shield: 1, victory: 1, defeat: 1,
+                          diaulo_amico: 0, diaulo_butta: 0, diaulo_base: 0, diaulo_signore: 0 };
   var audioCache = {};
   function getCtx() {
     if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { ctx = null; } }

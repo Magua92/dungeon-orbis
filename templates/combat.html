@@ -60,6 +60,7 @@
 <script>
 (function() {
   var lines = {{ run.log|tojson }};
+  var specialBoss = {{ (run.combat.special_boss or '')|tojson }};
   var logEl = document.getElementById('combat-log-live');
   var player = document.getElementById('duel-player');
   var enemy = document.getElementById('duel-enemy');
@@ -71,6 +72,15 @@
     // suono/animazione, altrimenti scattano ogni round sopra l'azione vera e propria
     // e si accavallano.
     if (/Compagni del Martello|L'Ariete incalza|Cura passiva:|Il tuo Seguito ti infonde|Penitente:/.test(text)) return null;
+    if (specialBoss === 'il_diaulo') {
+      if (/Amico dei Rettiliani:/.test(text)) return 'diaulo_amico';
+      if (/Buttacettete:/.test(text)) return 'diaulo_butta';
+      if (/Signore Oscuro:/.test(text)) return 'diaulo_signore';
+      if (/sussurra il tuo nome/.test(text)) return 'diaulo_base';
+      // le righe di danno "grezze" che seguono una mossa gia' nominata restano silenziose:
+      // il suono e' gia' scattato sulla riga col nome della mossa, altrimenti raddoppia.
+      if (/^Subisci |Il tuo Timore scende di |Lo schianto gli costa/.test(text)) return null;
+    }
     if (/infliggi|colpiscono per|colpisce per|danni al nemico|danni fisici e|danni al Timore del nemico|critico/.test(text)) return 'hit_dealt';
     if (/Subisci|attacca la tua psiche|ti indebolisce|ti ferisce in profondità|sanguinamento|perdi /.test(text)) return 'hit_taken';
     if (/recuperi|ti infonde|si riprende/.test(text)) return 'heal';
@@ -117,6 +127,8 @@
         else if (cue === 'hit_taken') { swing(enemy, player); if (window.SFX) SFX.play('hit_taken'); }
         else if (cue === 'heal') { flash(player); if (window.SFX) SFX.play('heal'); }
         else if (cue === 'shield') { if (window.SFX) SFX.play('shield'); }
+        else if (cue === 'diaulo_amico' || cue === 'diaulo_butta' || cue === 'diaulo_base') { swing(enemy, player); if (window.SFX) SFX.play(cue); }
+        else if (cue === 'diaulo_signore') { flash(player); flash(enemy); if (window.SFX) SFX.play(cue); }
         var div = document.createElement('div');
         div.textContent = line;
         logEl.appendChild(div);
@@ -128,6 +140,25 @@
   setTimeout(function() {
     actionButtons.forEach(function(b) { b.disabled = false; b.style.opacity = ''; b.style.cursor = ''; });
   }, delay);
+
+  // Colonna sonora dedicata, solo durante il combattimento con IL DIAULO. Ogni azione
+  // ricarica la pagina, quindi salviamo il punto in cui eravamo arrivati e riprendiamo
+  // da li' — non e' un loop perfettamente continuo, ma niente riparte da zero ogni volta.
+  if (specialBoss === 'il_diaulo' && localStorage.getItem('sfx_muted') !== '1') {
+    var music = document.getElementById('diaulo-music');
+    if (music) {
+      var pos = parseFloat(localStorage.getItem('diaulo_music_pos') || '0');
+      music.currentTime = pos || 0;
+      music.volume = 0.35;
+      music.play().catch(function() {});
+      music.addEventListener('timeupdate', function() {
+        localStorage.setItem('diaulo_music_pos', music.currentTime);
+      });
+    }
+  }
 })();
 </script>
+{% if run.combat.special_boss == 'il_diaulo' %}
+<audio id="diaulo-music" src="/static/music/il_diaulo.mp3" loop></audio>
+{% endif %}
 {% endblock %}
