@@ -31,8 +31,8 @@
   {% endif %}
   <div style="display:flex;gap:0.4rem;margin-top:0.5rem;flex-wrap:wrap">
     {% for m in run.seguito %}
-    <span title="{{ m.type }}" style="width:30px;height:30px;border-radius:50%;border:1px solid var(--border);background:#0f0c0688;display:flex;align-items:center;justify-content:center;font-size:0.85rem;{% if not m.alive %}opacity:0.25;filter:grayscale(1);border-style:dashed;{% endif %}">
-      {{ {'fante':'⚔️','arciere':'🏹','cavaliere':'🐎','purificatore':'✨','guardiano':'🪨','martello':'🔨','mercenario':'💰','convertito':'🤝'}.get(m.type, '❔') }}
+    <span title="{{ 'Mercenario' if m.type == 'mercenario' else ENTOURAGE_TYPES.get(m.type, {}).get('name', m.type) }}" style="width:30px;height:30px;border-radius:50%;border:1px solid var(--border);background:#0f0c0688;display:flex;align-items:center;justify-content:center;font-size:0.85rem;{% if not m.alive %}opacity:0.25;filter:grayscale(1);border-style:dashed;{% endif %}">
+      {% if m.type == "mercenario" %}💰{% else %}{{ ENTOURAGE_TYPES.get(m.type, {}).get('icon', '❔') }}{% endif %}
     </span>
     {% endfor %}
     {% if not run.seguito %}<span style="opacity:0.5;font-size:0.75rem">Nessun Seguito</span>{% endif %}
