@@ -162,6 +162,27 @@ def choose_class():
     return render_template("choose_class.html", classes=gd.CLASSES, error=None)
 
 
+def sound_cues_from_log(log_lines, outcome=None):
+    """Deduce quali effetti sonori generici far scattare in pagina, leggendo il testo
+    del log dell'ultimo round/evento invece di dover tracciare un segnale dedicato in
+    engine.py. Euristico ma sufficiente per un primo set di suoni per categoria."""
+    text = " ".join(log_lines)
+    cues = []
+    if outcome == "vittoria":
+        cues.append("victory")
+    elif outcome in ("sconfitta_morte", "sconfitta_timore"):
+        cues.append("defeat")
+    if any(s in text for s in ("infliggi", "colpiscono per", "colpisce per", "danni al nemico", "danni fisici e", "danni al Timore del nemico", "critico")):
+        cues.append("hit_dealt")
+    if any(s in text for s in ("Subisci", "attacca la tua psiche", "ti indebolisce", "ti ferisce in profondità", "sanguinamento", "perdi ")):
+        cues.append("hit_taken")
+    if any(s in text for s in ("recuperi", "ti infonde", "si riprende")):
+        cues.append("heal")
+    if any(s in text for s in ("scudo", "Scudo", "assorbe", "attutisce")):
+        cues.append("shield")
+    return cues
+
+
 @app.route("/prepare")
 def prepare():
     faction = request.args.get("faction")
@@ -277,9 +298,8 @@ def room_action():
         run["room_index"] = gd.ROOMS_PER_RUN
         run["log"] = ["Vie Segrete: abbandoni il percorso consueto per sentieri nascosti, e ti ritrovi già davanti alla tana del miniboss."]
         session["run"] = run
-        return render_template("room_result.html", run=run, log=run["log"], room_finished=True)
-
-    return redirect(url_for("room"))
+        return render_template("room_result.html", run=run, log=run["log"], room_finished=True,
+                                sound_cues=sound_cues_from_log(run["log"]))
 
 
 @app.route("/room")
@@ -339,7 +359,8 @@ def choose_room():
     run["log"] = log
     run["room_index"] += 1
     session["run"] = run
-    return render_template("room_result.html", run=run, log=log, room_finished=True)
+    return render_template("room_result.html", run=run, log=log, room_finished=True,
+                            sound_cues=sound_cues_from_log(log))
 
 
 @app.route("/combat")
@@ -350,7 +371,8 @@ def combat():
     actions = engine.all_combat_abilities(run)
     is_boss = run["combat"]["tier"] == "boss"
     return render_template("combat.html", run=run, actions=actions, is_boss=is_boss,
-                            enemy_portrait_url=_monster_portrait_url(run["combat"]["name"]))
+                            enemy_portrait_url=_monster_portrait_url(run["combat"]["name"]),
+                            sound_cues=sound_cues_from_log(run.get("log", [])))
 
 
 @app.route("/combat/act", methods=["POST"])
@@ -383,19 +405,22 @@ def combat_act():
             return redirect(url_for("run_end"))
         run["room_index"] += 1
         session["run"] = run
-        return render_template("room_result.html", run=run, log=run["log"], room_finished=True)
+        return render_template("room_result.html", run=run, log=run["log"], room_finished=True,
+                                sound_cues=sound_cues_from_log(run["log"]))
 
     if esito == "fuga":
         engine.cleanup_temp_mercenaries(run)
         run["room_index"] += 1
         session["run"] = run
-        return render_template("room_result.html", run=run, log=run.get("log", []), room_finished=True)
+        return render_template("room_result.html", run=run, log=run.get("log", []), room_finished=True,
+                                sound_cues=sound_cues_from_log(run.get("log", [])))
 
     if esito == "salta_stanza":
         engine.cleanup_temp_mercenaries(run)
         run["room_index"] += 1
         session["run"] = run
-        return render_template("room_result.html", run=run, log=run.get("log", []), room_finished=True)
+        return render_template("room_result.html", run=run, log=run.get("log", []), room_finished=True,
+                                sound_cues=sound_cues_from_log(run.get("log", [])))
 
     if esito in ("sconfitta_morte", "sconfitta_timore"):
         engine.cleanup_temp_mercenaries(run)
@@ -418,7 +443,8 @@ def miniboss():
         session["run"] = run
     actions = engine.all_combat_abilities(run)
     return render_template("combat.html", run=run, actions=actions, is_boss=True, is_miniboss_intro=True,
-                            enemy_portrait_url=_monster_portrait_url(run["combat"]["name"]))
+                            enemy_portrait_url=_monster_portrait_url(run["combat"]["name"]),
+                            sound_cues=sound_cues_from_log(run.get("log", [])))
 
 
 @app.route("/run_end")
@@ -458,7 +484,8 @@ def run_end():
 
     session.pop("run", None)
     return render_template("run_end.html", run=run, loot=loot, drop_names=drop_names, xp_gained=xp_gained,
-                            result_labels=result_labels, summary_text=summary)
+                            result_labels=result_labels, summary_text=summary,
+                            sound_cues=sound_cues_from_log(run.get("log", []), outcome=run["result"]))
 
 
 @app.route("/admin", methods=["GET", "POST"])
