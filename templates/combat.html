@@ -7,7 +7,10 @@
   {% include "_status.html" %}
   <div class="panel-box">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
-      <strong>{{ c.icon }} {{ c.name }}</strong>
+      <div style="display:flex;align-items:center;gap:0.5rem">
+        {% if enemy_portrait_url %}<img src="{{ enemy_portrait_url }}" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:1px solid var(--border)">{% else %}<span>{{ c.icon }}</span>{% endif %}
+        <strong>{{ c.name }}</strong>
+      </div>
       {% if c.fear_chance > 0 %}<span style="font-size:0.65rem;background:#4a2a7a55;border:1px solid var(--timore-light);color:var(--timore-light);padding:0.1rem 0.4rem;border-radius:4px">👁️ Può colpire il Timore</span>{% endif %}
     </div>
     <div class="bar-label"><span>PV Nemico</span><span>{{ c.enemy_pv }} / {{ c.enemy_pv_max }}</span></div>

@@ -1,6 +1,23 @@
 {% extends "base.html" %}
 {% block content %}
 <h1 style="text-align:center">🗺️ Preparazione della Spedizione</h1>
+
+<div class="panel-box" style="text-align:center">
+  <h3>🖼️ Ritratto del personaggio</h3>
+  {% if portrait_url %}
+  <img src="{{ portrait_url }}" alt="Ritratto di {{ name }}" style="max-width:150px;max-height:150px;border-radius:10px;border:1px solid var(--border);margin-bottom:0.7rem;object-fit:cover">
+  {% else %}
+  <div style="opacity:0.6;font-size:0.8rem;margin-bottom:0.7rem">Nessun ritratto caricato — comparirà l'iniziale del nome.</div>
+  {% endif %}
+  <form method="post" action="/upload_portrait" enctype="multipart/form-data" style="display:flex;gap:0.5rem;justify-content:center;flex-wrap:wrap">
+    <input type="hidden" name="faction" value="{{ faction }}">
+    <input type="hidden" name="name" value="{{ name }}">
+    <input type="file" name="portrait" accept="image/png,image/jpeg,image/webp" required>
+    <button type="submit" class="btn" style="padding:0.4rem 0.9rem;font-size:0.8rem">Carica ritratto</button>
+  </form>
+  <div style="font-size:0.68rem;opacity:0.55;margin-top:0.5rem">PNG, JPG o WEBP, max 3 MB.</div>
+</div>
+
 <div class="panel-box">
   <h3>{{ name }} — {{ char_class }} · Livello {{ level }} ({{ xp }} PE)</h3>
   <div style="font-size:0.8rem;opacity:0.8">

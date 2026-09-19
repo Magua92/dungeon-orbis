@@ -1,7 +1,10 @@
 {% set l = run.leader %}
 <div class="panel-box">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
-    <strong>{{ run.name }}</strong>
+    <div style="display:flex;align-items:center;gap:0.5rem">
+      {% if run.portrait_url %}<img src="{{ run.portrait_url }}" alt="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:1px solid var(--border)">{% endif %}
+      <strong>{{ run.name }}</strong>
+    </div>
     <span style="font-size:0.8rem;opacity:0.75">Liv. {{ run.level }} — Stanza {{ (run.room_index + 1) if run.room_index < ROOMS_PER_RUN else ROOMS_PER_RUN }}/{{ ROOMS_PER_RUN }}</span>
   </div>
   <div class="bar-label"><span>❤️ Vita</span><span>{{ l.pv }} / {{ l.pv_max }}</span></div>
@@ -13,6 +16,13 @@
     <span>🧠 Res. Mentale: {{ l.mres + run.temp_buffs.mres + (run.combat.combat_mres_bonus if run.combat else 0) }}</span>
     <span>💰 Oro: {{ run.treasure.oro }}</span>
   </div>
+  {% if run.combat and (run.combat.shield_physical_pool > 0 or run.combat.shield_timore_pool > 0 or run.combat.shield_reduction > 0) %}
+  <div style="display:flex;gap:0.5rem;margin-top:0.4rem;flex-wrap:wrap;font-size:0.72rem">
+    {% if run.combat.shield_physical_pool > 0 %}<span style="background:#1c150c;border:1px solid var(--pv-light);color:var(--pv-light);padding:0.15rem 0.5rem;border-radius:5px">🛡️ Scudo Vita: {{ run.combat.shield_physical_pool }}</span>{% endif %}
+    {% if run.combat.shield_timore_pool > 0 %}<span style="background:#1c150c;border:1px solid var(--timore-light);color:var(--timore-light);padding:0.15rem 0.5rem;border-radius:5px">🔮 Scudo Timore: {{ run.combat.shield_timore_pool }}</span>{% endif %}
+    {% if run.combat.shield_reduction > 0 %}<span style="background:#1c150c;border:1px solid var(--gold-light);color:var(--gold-light);padding:0.15rem 0.5rem;border-radius:5px">🪖 Prossimo colpo attutito: -{{ run.combat.shield_reduction }}</span>{% endif %}
+  </div>
+  {% endif %}
   <div style="display:flex;gap:0.4rem;margin-top:0.5rem;flex-wrap:wrap">
     {% for m in run.seguito %}
     <span title="{{ m.type }}" style="width:30px;height:30px;border-radius:50%;border:1px solid var(--border);background:#0f0c0688;display:flex;align-items:center;justify-content:center;font-size:0.85rem;{% if not m.alive %}opacity:0.25;filter:grayscale(1);border-style:dashed;{% endif %}">
