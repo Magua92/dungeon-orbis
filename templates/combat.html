@@ -149,7 +149,7 @@
     if (music) {
       var pos = parseFloat(localStorage.getItem('diaulo_music_pos') || '0');
       music.currentTime = pos || 0;
-      music.volume = 0.35;
+      music.volume = 0.25;
       music.play().catch(function() {});
       music.addEventListener('timeupdate', function() {
         localStorage.setItem('diaulo_music_pos', music.currentTime);
