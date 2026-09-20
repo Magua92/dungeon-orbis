@@ -487,13 +487,15 @@ ITEMS = {
 EQUIP_SLOTS = ["slot_arma", "slot_armatura", "slot_jolly"]  # jolly: arma o armatura, a scelta
 LOOT_LEVEL_SCALING = True  # se True, roll_loot() applica level_factor() al bottino
 
+# ─── COSTANTI PER GLI EFFETTI EPICI/LEGGENDARI (vedi ITEMS sopra) ───────────
+ITEM_CRIT_CHANCE = 0.15          # Spezzacielo: probabilita' di colpo critico per round
+RADDOPPIO_SOTTO_QUARTO_SOGLIA = 0.25  # Egida dell'Ultimo Bastione: soglia di Vita sotto cui l'Armatura raddoppia
+
 
 def format_item_effects(effects):
-    """Rende leggibile in italiano SOLO gli effetti che engine.py applica davvero
-    (dmg, armor, mres, iniziativa). Gli altri flag salvati sugli oggetti epici/
-    leggendari (ignora_difese_pct, riflette_pct, critico_colpisce_timore, ecc.) non
-    sono ancora collegati a nessuna logica di combattimento: ometterli qui evita di
-    promettere ai giocatori un effetto che il gioco non applica per davvero."""
+    """Rende leggibile in italiano ogni effetto meccanico di un oggetto — di base,
+    epico o leggendario che sia. Tutti i flag qui sotto sono collegati a una logica
+    reale in engine.py."""
     parts = []
     if effects.get("dmg"):
         parts.append("%+d Danno" % effects["dmg"])
@@ -503,6 +505,24 @@ def format_item_effects(effects):
         parts.append("%+d Res. Mentale" % effects["mres"])
     if effects.get("iniziativa"):
         parts.append("%+d Iniziativa" % effects["iniziativa"])
+    if effects.get("dmg_abilita"):
+        parts.append("%+d danno quando usi un'abilità" % effects["dmg_abilita"])
+    if effects.get("stordisce_pct"):
+        parts.append("%d%% di stordire per 1 turno il nemico colpito" % round(effects["stordisce_pct"] * 100))
+    if effects.get("ignora_difese_pct"):
+        parts.append("%d%% di ignorare del tutto l'Armatura nemica sul colpo" % round(effects["ignora_difese_pct"] * 100))
+    if effects.get("dmg_timore_nemico"):
+        parts.append("+%d danno al Timore nemico a ogni colpo fisico" % effects["dmg_timore_nemico"])
+    if effects.get("critico_colpisce_timore"):
+        parts.append("%d%% di colpo critico (danno raddoppiato) che colpisce anche il Timore nemico" % round(ITEM_CRIT_CHANCE * 100))
+    if effects.get("riflette_pct"):
+        parts.append("riflette il %d%% dei danni fisici subiti sul nemico" % round(effects["riflette_pct"] * 100))
+    if effects.get("raddoppio_sotto_quarto"):
+        parts.append("raddoppia l'Armatura quando sei sotto 1/4 di Vita")
+    if effects.get("immunita_primo_pauroso"):
+        parts.append("annulla il primo attacco che colpirebbe il Timore in ogni combattimento")
+    if effects.get("negoziazione_pct"):
+        parts.append("-%d%% al costo di Forgia e Mercenario" % round(effects["negoziazione_pct"] * 100))
     return ", ".join(parts) if parts else "Nessun effetto meccanico attivo al momento"
 
 # ─── RIEPILOGO DISCORD (embed narrativo a fine spedizione) ──────────────────

@@ -309,7 +309,7 @@ def start_combat(run, tier):
         "enemy_pv": enemy_pv_value, "enemy_pv_max": enemy_pv_value,
         "enemy_timore": enemy_timore_value, "enemy_timore_max": enemy_timore_value,
         "dmg": data["dmg"], "fear_chance": data["fear_chance"], "fear_dmg": data["fear_dmg"],
-        "round": 1, "first_hit_taken": False, "negotiated_escape": False, "enemy_stunned": 0,
+        "round": 1, "first_hit_taken": False, "first_fear_hit_taken": False, "negotiated_escape": False, "enemy_stunned": 0,
         "combat_armor_bonus": 0, "combat_mres_bonus": 0, "combat_dmg_bonus": 0,
         "shield_reduction": 0, "double_next_attack": False, "skip_attack": False,
         "colpo_arcano_stacks": 0, "shield_physical_pool": 0, "shield_timore_pool": 0,
@@ -366,6 +366,10 @@ def _effective_defense(run, combat, stat):
     oggetti/passive + bonus temporanei di combattimento, meno un eventuale debuff
     nemico attivo su quella specifica statistica."""
     base = run["leader"][stat] + run["temp_buffs"][stat] + combat.get("combat_%s_bonus" % stat, 0)
+    if stat == "armor" and run.get("equip_flags", {}).get("raddoppio_sotto_quarto") \
+            and run["leader"]["pv_max"] > 0 \
+            and run["leader"]["pv"] < run["leader"]["pv_max"] * gd.RADDOPPIO_SOTTO_QUARTO_SOGLIA:
+        base *= 2
     if combat.get("player_debuff_stat") == stat and combat.get("player_debuff_turns", 0) > 0:
         base -= gd.ENEMY_DEBUFF_AMOUNT
     return max(0, base)
@@ -394,6 +398,11 @@ def _special_boss_deal_damage(run, combat, log, phys, timore_amt):
         if dmg_to_leader > 0:
             run["leader"]["pv"] -= dmg_to_leader
             log.append("Subisci %d danni fisici." % dmg_to_leader)
+            riflette_pct = run.get("equip_flags", {}).get("riflette_pct", 0)
+            if riflette_pct:
+                reflected = max(1, round(dmg_to_leader * riflette_pct))
+                combat["enemy_pv"] -= reflected
+                log.append("La tua armatura riflette %d danni sul nemico." % reflected)
     if timore_amt > 0:
         residuo_t = timore_amt
         pool_t = combat.get("shield_timore_pool", 0)
@@ -835,6 +844,11 @@ def resolve_combat_round(run, action_key):
             combat["shield_physical_pool"] += 2
     else:
         dmg, timore_dmg, ab_log, escape = _apply_ability_action(run, action_key)
+        if not escape and dmg > 0:
+            bonus_abilita = run.get("equip_flags", {}).get("dmg_abilita", 0)
+            if bonus_abilita:
+                dmg += bonus_abilita
+                ab_log.append("Il Bastone Runico infonde ulteriore potere: +%d danno." % bonus_abilita)
 
     if not escape and dmg > 0 and run["combat"].get("double_next_attack"):
         dmg *= 2
@@ -975,8 +989,32 @@ def resolve_combat_round(run, action_key):
                 enemy_armor += gd.ENEMY_BUFF_AMOUNT
             elif combat.get("enemy_buff_stat") == "mres":
                 enemy_mres += gd.ENEMY_BUFF_AMOUNT
-        phys = max(1, dmg - enemy_armor) if dmg > 0 else 0
-        fear = max(1, timore_dmg - enemy_mres) if timore_dmg > 0 else 0
+
+        flags = run.get("equip_flags", {})
+        effective_dmg = dmg
+        bonus_timore = 0
+        crit_bonus_timore = 0
+        if effective_dmg > 0:
+            ignora_pct = flags.get("ignora_difese_pct", 0)
+            if ignora_pct and random.random() < ignora_pct:
+                enemy_armor = 0
+                log.append("La Lama del Giuramento Spezzato trova una falla e ignora del tutto la difesa nemica!")
+
+            stordisce_pct = flags.get("stordisce_pct", 0)
+            if stordisce_pct and random.random() < stordisce_pct:
+                combat["enemy_stunned"] = combat.get("enemy_stunned", 0) + 1
+                log.append("Il Martello dei Compagni stordisce il nemico per 1 turno!")
+
+            bonus_timore += flags.get("dmg_timore_nemico", 0)
+
+            if flags.get("critico_colpisce_timore") and random.random() < gd.ITEM_CRIT_CHANCE:
+                crit_bonus_timore = effective_dmg
+                effective_dmg *= 2
+                log.append("Spezzacielo strappa un colpo critico, che incrina corpo e Timore del nemico!")
+
+        phys = max(1, effective_dmg - enemy_armor) if effective_dmg > 0 else 0
+        total_timore_dmg = timore_dmg + bonus_timore + crit_bonus_timore
+        fear = max(1, total_timore_dmg - enemy_mres) if total_timore_dmg > 0 else 0
         combat["enemy_pv"] -= phys
         combat["enemy_timore"] -= fear
 
@@ -1091,6 +1129,11 @@ def resolve_combat_round(run, action_key):
             fear_chance = max(0.0, fear_chance - gd.BARDO_FEAR_REDUCTION)
         is_fear = random.random() < fear_chance
         if is_fear:
+            if not combat.get("first_fear_hit_taken", False):
+                combat["first_fear_hit_taken"] = True
+                if run.get("equip_flags", {}).get("immunita_primo_pauroso"):
+                    log.append("Il Velo della Nébrahil ti protegge dal primo colpo che minaccia il tuo Timore.")
+                    return
             base = random.randint(*combat["fear_dmg"]) if combat["fear_dmg"][1] > 0 else 0
             shield = combat.get("shield_reduction", 0)
             if shield and base > 0:
@@ -1138,6 +1181,11 @@ def resolve_combat_round(run, action_key):
                 if dmg_to_leader > 0:
                     run["leader"]["pv"] -= dmg_to_leader
                     log.append("Subisci %d danni fisici." % dmg_to_leader)
+                    riflette_pct = run.get("equip_flags", {}).get("riflette_pct", 0)
+                    if riflette_pct:
+                        reflected = max(1, round(dmg_to_leader * riflette_pct))
+                        combat["enemy_pv"] -= reflected
+                        log.append("La tua armatura riflette %d danni sul nemico." % reflected)
 
     if leader_first:
         apply_leader_damage_to_enemy()
@@ -1446,13 +1494,20 @@ def resolve_fontana(run):
     return log
 
 
+def _negoziazione_discount(run, base_cost):
+    sconto_pct = run.get("equip_flags", {}).get("negoziazione_pct", 0)
+    if not sconto_pct:
+        return base_cost
+    return max(0, round(base_cost * (1 - sconto_pct)))
+
+
 def incudine_cost(run):
     base = gd.INCUDINE_BASE_COST
     if run["class"] == "Amministratore":
         free_budget = 2 if run["level"] >= 10 else 1
         if run.get("incudine_free_used", 0) < free_budget:
             return 0
-    return base
+    return _negoziazione_discount(run, base)
 
 
 def incudine_buff_amount(run):
@@ -1476,7 +1531,7 @@ def resolve_incudine(run, stat_choice):
 
 
 def sacco_monete_cost(run):
-    return gd.SACCO_MONETE_COST
+    return _negoziazione_discount(run, gd.SACCO_MONETE_COST)
 
 
 def resolve_sacco_monete(run):
