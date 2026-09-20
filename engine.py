@@ -1566,3 +1566,341 @@ def compute_xp_gain(run):
         xp += 30
     xp += run.get("bonus_xp", 0)
     return xp
+
+
+# ─── ARENA (duelli PvP asincroni) ─────────────────────────────────────────
+# Riusa lo stesso personaggio/equip/livello/abilita' del PvE (vedi new_run_state),
+# ma senza nemico scriptato: i due lati sono entrambi giocatori veri. Invece di
+# riscrivere da zero tutta la logica delle abilita' (_apply_ability_action, ~700
+# righe gia' collaudate in PvE), la si riusa cosi' com'e' tramite un "adattatore":
+# per la durata di una singola azione, lo stato dell'avversario viene esposto sotto
+# le stesse chiavi "enemy_*" che quella funzione gia' si aspetta.
+
+ARENA_SOLO_SPEDIZIONI = {"vie_segrete", "bancarotta", "esperto_saccheggiatore", "azzardo_economico"}
+
+
+def _fresh_arena_status():
+    """Stato di combattimento "vivo" di un lato del duello: scudi, buff/debuff
+    temporanei, stordimento, ecc. — l'equivalente del dizionario `combat` del PvE,
+    ma solo per gli effetti che riguardano DAVVERO questo lato (vedi sopra)."""
+    return {
+        "combat_armor_bonus": 0, "combat_mres_bonus": 0, "combat_dmg_bonus": 0,
+        "shield_reduction": 0, "shield_physical_pool": 0, "shield_timore_pool": 0,
+        "double_next_attack": False, "colpo_arcano_stacks": 0, "raffica_potenziata": False,
+        "evasion_turns": 0, "evasion_chance": 0.0,
+        "stunned": 0, "slowed_turns": 0, "weaken_turns": 0, "weaken_amount": 0,
+        "burn_turns": 0, "burn_dmg": 0,
+    }
+
+
+def new_arena_state(faction, name, char_class, level, entourage_types, equip_item_ids, equipped_abilities=None):
+    """Come new_run_state, con in piu' lo stato di combattimento persistente del
+    duello. Il chiamante e' responsabile di NON includere le abilita' ARENA_SOLO_SPEDIZIONI
+    in equipped_abilities (la schermata di preparazione le mostrera' non selezionabili)."""
+    run = new_run_state(faction, name, char_class, level, entourage_types, equip_item_ids, equipped_abilities)
+    run["arena_status"] = _fresh_arena_status()
+    return run
+
+
+def arena_available_actions(run):
+    """Come all_combat_abilities, ma senza le abilita' pensate solo per il PvE."""
+    return [a for a in all_combat_abilities(run) if a["key"] not in ARENA_SOLO_SPEDIZIONI]
+
+
+def _arena_shim_combat(actor_status, target_status):
+    """Espone temporaneamente lo stato del bersaglio sotto le chiavi 'enemy_*',
+    cosi' _apply_ability_action puo' leggerle/scriverle esattamente come farebbe
+    in PvE. actor_status stesso funge da dizionario 'combat' per tutto il resto
+    (i suoi stessi scudi/buff, gia' con i nomi giusti)."""
+    actor_status["enemy_stunned"] = target_status.get("stunned", 0)
+    actor_status["enemy_slowed_turns"] = target_status.get("slowed_turns", 0)
+    actor_status["enemy_weaken_turns"] = target_status.get("weaken_turns", 0)
+    actor_status["enemy_weaken_amount"] = target_status.get("weaken_amount", 0)
+    actor_status["burn_turns"] = target_status.get("burn_turns", 0)
+    actor_status["burn_dmg"] = target_status.get("burn_dmg", 0)
+    return actor_status
+
+
+def _arena_unshim_combat(actor_status, target_status):
+    """Rilegge le chiavi 'enemy_*' (eventualmente modificate dall'abilita' appena
+    eseguita) e le riversa nello stato persistente del bersaglio, poi le rimuove
+    da actor_status perche' non gli appartengono."""
+    target_status["stunned"] = actor_status.pop("enemy_stunned", 0)
+    target_status["slowed_turns"] = actor_status.pop("enemy_slowed_turns", 0)
+    target_status["weaken_turns"] = actor_status.pop("enemy_weaken_turns", 0)
+    target_status["weaken_amount"] = actor_status.pop("enemy_weaken_amount", 0)
+    target_status["burn_turns"] = actor_status.pop("burn_turns", 0)
+    target_status["burn_dmg"] = actor_status.pop("burn_dmg", 0)
+
+
+def _arena_effective_defense(combatant, status, stat):
+    """Equivalente di _effective_defense per un combattente dell'arena."""
+    base = combatant["leader"][stat] + combatant["temp_buffs"][stat] + status.get("combat_%s_bonus" % stat, 0)
+    if stat == "armor" and combatant.get("equip_flags", {}).get("raddoppio_sotto_quarto") \
+            and combatant["leader"]["pv_max"] > 0 \
+            and combatant["leader"]["pv"] < combatant["leader"]["pv_max"] * gd.RADDOPPIO_SOTTO_QUARTO_SOGLIA:
+        base *= 2
+    return max(0, base)
+
+
+def _arena_apply_damage(actor, target, target_status, dmg, timore_dmg, log):
+    """Applica al bersaglio il danno di un'azione, con la stessa mitigazione
+    (scudi, Armatura/Res. Mentale effettive, oggetti epici/leggendari) del PvE —
+    qui pero' il bersaglio e' un giocatore vero con scudi/buff propri, cosa che il
+    nemico scriptato del PvE non ha mai avuto bisogno di gestire."""
+    flags = actor.get("equip_flags", {})
+    effective_dmg = dmg
+    bonus_timore = 0
+    crit_bonus_timore = 0
+    ignora_difese = False
+
+    if effective_dmg > 0:
+        ignora_pct = flags.get("ignora_difese_pct", 0)
+        if ignora_pct and random.random() < ignora_pct:
+            ignora_difese = True
+            log.append("%s ignora completamente la difesa di %s!" % (actor["name"], target["name"]))
+
+        stordisce_pct = flags.get("stordisce_pct", 0)
+        if stordisce_pct and random.random() < stordisce_pct:
+            target_status["stunned"] = target_status.get("stunned", 0) + 1
+            log.append("%s stordisce %s per 1 turno!" % (actor["name"], target["name"]))
+
+        bonus_timore += flags.get("dmg_timore_nemico", 0)
+
+        if flags.get("critico_colpisce_timore") and random.random() < gd.ITEM_CRIT_CHANCE:
+            crit_bonus_timore += effective_dmg
+            effective_dmg *= 2
+            log.append("Colpo critico di %s, che incrina corpo e Timore!" % actor["name"])
+
+        # Variante arena di Esperto Catalogatore (Mago): ogni danno fisico inflitto
+        # colpisce anche il Timore avversario.
+        if actor["class"] == "Mago":
+            bonus_timore += 1
+
+    if effective_dmg > 0:
+        residuo = effective_dmg
+        absorbed, residuo, seg_log = _seguito_absorb(target, residuo)
+        log.extend(seg_log)
+        if absorbed and residuo <= 0:
+            pass
+        else:
+            shield = target_status.get("shield_reduction", 0)
+            if shield and residuo > 0:
+                residuo = max(0, residuo - shield)
+                target_status["shield_reduction"] = 0
+                log.append("Lo scudo di %s attutisce il colpo." % target["name"])
+            pool = target_status.get("shield_physical_pool", 0)
+            if pool and residuo > 0:
+                assorbito = min(pool, residuo)
+                residuo -= assorbito
+                target_status["shield_physical_pool"] -= assorbito
+                log.append("Lo scudo magico di %s assorbe %d danni fisici." % (target["name"], assorbito))
+            final_armor = 0 if ignora_difese else _arena_effective_defense(target, target_status, "armor")
+            dmg_to_target = max(1, residuo - final_armor) if residuo > 0 else 0
+            if dmg_to_target > 0:
+                target["leader"]["pv"] -= dmg_to_target
+                log.append("%s subisce %d danni fisici." % (target["name"], dmg_to_target))
+                riflette_pct = target.get("equip_flags", {}).get("riflette_pct", 0)
+                if riflette_pct:
+                    reflected = max(1, round(dmg_to_target * riflette_pct))
+                    actor["leader"]["pv"] -= reflected
+                    log.append("L'armatura di %s riflette %d danni su %s." % (target["name"], reflected, actor["name"]))
+
+    total_timore_dmg = timore_dmg + bonus_timore + crit_bonus_timore
+    if total_timore_dmg > 0:
+        residuo_t = total_timore_dmg
+        bardi = sum(1 for m in target["seguito"] if m["alive"] and m["type"] == "bardo")
+        if bardi:
+            riduzione_bardo = bardi * gd.BARDO_ARENA_TIMORE_REDUCTION
+            residuo_t = max(0, residuo_t - riduzione_bardo)
+            if riduzione_bardo:
+                log.append("Il Bardo di %s attutisce l'assalto al Timore (-%d)." % (target["name"], riduzione_bardo))
+        pool_t = target_status.get("shield_timore_pool", 0)
+        if pool_t and residuo_t > 0:
+            assorbito_t = min(pool_t, residuo_t)
+            residuo_t -= assorbito_t
+            target_status["shield_timore_pool"] -= assorbito_t
+            log.append("Lo scudo magico di %s assorbe %d danni al Timore." % (target["name"], assorbito_t))
+        total_mres = _arena_effective_defense(target, target_status, "mres")
+        timore_to_target = max(1, residuo_t - total_mres) if residuo_t > 0 else 0
+        if timore_to_target > 0:
+            target["leader"]["timore"] -= timore_to_target
+            log.append("Il Timore di %s scende di %d." % (target["name"], timore_to_target))
+
+
+def _arena_take_action(actor, target, action_key, is_first, log):
+    """Risolve l'azione di UN lato contro l'altro. is_first indica se questo lato
+    agisce per primo in questo round (serve al bonus danno dell'Arciere). Ritorna
+    'fuga' se il lato ha abbandonato il duello, altrimenti None."""
+    actor_status, target_status = actor["arena_status"], target["arena_status"]
+
+    if actor_status.get("stunned", 0) > 0:
+        actor_status["stunned"] -= 1
+        log.append("%s è ancora stordito e non riesce ad agire." % actor["name"])
+        return None
+
+    log.append("— %s —" % actor["name"])
+
+    fake_run = {
+        "leader": actor["leader"], "temp_buffs": actor["temp_buffs"], "treasure": actor["treasure"],
+        "cooldowns": actor["cooldowns"], "seguito": actor["seguito"],
+        "used_once_abilities": actor["used_once_abilities"], "ability_use_counts": actor["ability_use_counts"],
+        "equipped_abilities": actor["equipped_abilities"], "equip_flags": actor["equip_flags"],
+        "class": actor["class"], "level": gd.MAX_LEVEL,  # in arena tutte le abilita' sono sbloccate
+        "combat": _arena_shim_combat(actor_status, target_status),
+    }
+
+    if action_key == "attacco_fisico":
+        dmg = _leader_dmg(fake_run)
+        timore_dmg = 0
+        escape = False
+        if actor["class"] == "Esploratore":
+            actor_status["shield_physical_pool"] = actor_status.get("shield_physical_pool", 0) + 2
+            ab_log = ["Attacco Preventivo: infligge %d danni e guadagna 2 scudo fisico." % dmg]
+        else:
+            ab_log = ["Attacca: infligge %d danni." % dmg]
+    else:
+        dmg, timore_dmg, ab_log, escape = _apply_ability_action(fake_run, action_key)
+
+    _arena_unshim_combat(actor_status, target_status)
+    log.extend(ab_log)
+
+    if escape:
+        log.append("%s abbandona il duello." % actor["name"])
+        return "fuga"
+
+    # Sforzo Adrenalinico, variante arena: resta solo il critico, niente scudo iniziale
+    if actor["class"] == "Esploratore" and (dmg > 0 or timore_dmg > 0) and random.random() < 0.10:
+        if dmg > 0:
+            dmg *= 2
+        if timore_dmg > 0:
+            timore_dmg *= 2
+        log.append("Sforzo Adrenalinico: colpo critico!")
+
+    # Ira Funesta (Generale): sotto il 50% di Vita o Timore, +3 danno
+    if actor["class"] == "Generale" and dmg > 0:
+        if actor["leader"]["pv"] < actor["leader"]["pv_max"] * 0.5 or actor["leader"]["timore"] < actor["leader"]["timore_max"] * 0.5:
+            dmg += 3
+            log.append("Ira Funesta: la disperazione acuisce il colpo, +3 danni.")
+
+    vessilliferi = sum(1 for m in actor["seguito"] if m["alive"] and m["type"] == "vessillifero")
+    if vessilliferi and dmg > 0:
+        dmg += vessilliferi
+        log.append("Vessillifero: lo stendardo issato incita il colpo, +%d danno." % vessilliferi)
+
+    has_arciere = any(m["alive"] and m["type"] == "arciere" for m in actor["seguito"])
+    if is_first and has_arciere and dmg > 0:
+        dmg += gd.ARCIERE_DMG_BONUS
+        log.append("Arciere: una scarica di frecce di supporto aggiunge +%d danni al tuo colpo." % gd.ARCIERE_DMG_BONUS)
+
+    if dmg > 0 or timore_dmg > 0:
+        _arena_apply_damage(actor, target, target_status, dmg, timore_dmg, log)
+    return None
+
+
+def _arena_check_victory(state_a, state_b):
+    a_down = state_a["leader"]["pv"] <= 0 or state_a["leader"]["timore"] <= 0
+    b_down = state_b["leader"]["pv"] <= 0 or state_b["leader"]["timore"] <= 0
+    if a_down and b_down:
+        return "pareggio"
+    if a_down:
+        return "vittoria_b"
+    if b_down:
+        return "vittoria_a"
+    return None
+
+
+def start_arena_match(state_a, state_b):
+    """Effetti "una tantum" all'inizio del duello, equivalenti alla parte iniziale
+    di start_combat in PvE: lo scudo del Novizio. Va chiamata una sola volta, quando
+    entrambi i lati si sono preparati e il duello comincia davvero."""
+    log = []
+    for state in (state_a, state_b):
+        novizi = [m for m in state["seguito"] if m["alive"] and m["type"] == "novizio"]
+        if novizi:
+            state["arena_status"]["shield_physical_pool"] += gd.NOVIZIO_SHIELD_PHYSICAL
+            state["arena_status"]["shield_timore_pool"] += gd.NOVIZIO_SHIELD_TIMORE
+            _troop_falls(state, novizi[0], log)
+            log.append("%s: un Novizio si consuma per proteggerlo, guadagna %d scudo Vita e %d scudo Timore." %
+                        (state["name"], gd.NOVIZIO_SHIELD_PHYSICAL, gd.NOVIZIO_SHIELD_TIMORE))
+    return log
+
+
+def resolve_arena_round(state_a, state_b, action_a, action_b):
+    """Risolve un intero round: entrambe le azioni sono gia' state scelte in modo
+    indipendente e asincrono. Ritorna (esito, log) con esito in
+    'in_corso' | 'vittoria_a' | 'vittoria_b' | 'pareggio'."""
+    log = []
+    status_a, status_b = state_a["arena_status"], state_b["arena_status"]
+
+    # tick di inizio round: cooldown, bruciature, rallentamento, indebolimento,
+    # cura passiva del Seguito/classe, contrattacchi automatici di Martello/Ariete
+    for side_state, side_status, opponent_state in ((state_a, status_a, state_b), (state_b, status_b, state_a)):
+        for k in list(side_state["cooldowns"].keys()):
+            if side_state["cooldowns"][k] > 0:
+                side_state["cooldowns"][k] -= 1
+        if side_status.get("burn_turns", 0) > 0:
+            burn_dmg = side_status.get("burn_dmg", 0)
+            side_state["leader"]["pv"] -= burn_dmg
+            log.append("Le fiamme infliggono %d danni a %s." % (burn_dmg, side_state["name"]))
+            side_status["burn_turns"] -= 1
+        if side_status.get("weaken_turns", 0) > 0:
+            side_status["weaken_turns"] -= 1
+        if side_status.get("slowed_turns", 0) > 0:
+            side_status["slowed_turns"] -= 1
+
+        heal_pv = 0
+        heal_timore = 0
+        if any(m["alive"] and m["type"] == "purificatore" for m in side_state["seguito"]):
+            heal_pv += gd.PURIFICATORE_HEAL
+        if any(m["alive"] and m["type"] == "sciamano" for m in side_state["seguito"]):
+            heal_timore += gd.SCIAMANO_HEAL
+        if "bastione_della_fede" in side_state.get("equipped_abilities", []):
+            heal_pv += 2
+        if side_state["class"] == "Diplomatico":
+            vive = sum(1 for m in side_state["seguito"] if m["alive"])
+            if vive:
+                heal_pv += vive
+                heal_timore += vive
+        if heal_pv > 0:
+            side_state["leader"]["pv"] = min(side_state["leader"]["pv_max"], side_state["leader"]["pv"] + heal_pv)
+            log.append("%s recupera %d Vita (cura passiva)." % (side_state["name"], heal_pv))
+        if heal_timore > 0:
+            side_state["leader"]["timore"] = min(side_state["leader"]["timore_max"], side_state["leader"]["timore"] + heal_timore)
+            log.append("%s recupera %d Timore (cura passiva)." % (side_state["name"], heal_timore))
+
+        martelli = sum(1 for m in side_state["seguito"] if m["alive"] and m["type"] == "martello")
+        arieti = sum(1 for m in side_state["seguito"] if m["alive"] and m["type"] == "ariete")
+        if martelli:
+            opp_armor = _arena_effective_defense(opponent_state, opponent_state["arena_status"], "armor")
+            colpo = max(1, martelli * gd.MARTELLO_COUNTER_DMG - opp_armor)
+            opponent_state["leader"]["pv"] -= colpo
+            log.append("I Compagni del Martello di %s colpiscono %s per %d danni." % (side_state["name"], opponent_state["name"], colpo))
+        if arieti:
+            opp_mres = _arena_effective_defense(opponent_state, opponent_state["arena_status"], "mres")
+            colpo = max(1, arieti * gd.ARIETE_COUNTER_DMG - opp_mres)
+            opponent_state["leader"]["timore"] -= colpo
+            log.append("L'Ariete di %s incalza il Timore di %s per %d danni." % (side_state["name"], opponent_state["name"], colpo))
+
+        esito = _arena_check_victory(state_a, state_b)
+        if esito:
+            return esito, log
+
+    has_arciere_a = any(m["alive"] and m["type"] == "arciere" for m in state_a["seguito"])
+    has_arciere_b = any(m["alive"] and m["type"] == "arciere" for m in state_b["seguito"])
+    p_a_first = max(0.0, min(1.0, 0.5 + (0.25 if has_arciere_a else 0) - (0.25 if has_arciere_b else 0)))
+    a_first = random.random() < p_a_first
+
+    order = [("a", state_a, state_b, action_a), ("b", state_b, state_a, action_b)]
+    if not a_first:
+        order.reverse()
+
+    for i, (side, actor, target, action_key) in enumerate(order):
+        result = _arena_take_action(actor, target, action_key, i == 0, log)
+        if result == "fuga":
+            return ("vittoria_b" if side == "a" else "vittoria_a"), log
+        esito = _arena_check_victory(state_a, state_b)
+        if esito:
+            return esito, log
+
+    return "in_corso", log

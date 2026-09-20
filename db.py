@@ -52,12 +52,35 @@ def init_db():
             key TEXT PRIMARY KEY,
             value TEXT
         );
+        CREATE TABLE IF NOT EXISTS arena_matches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            faction_a TEXT NOT NULL,
+            name_a TEXT NOT NULL,
+            faction_b TEXT NOT NULL,
+            name_b TEXT NOT NULL,
+            status TEXT NOT NULL,          -- 'attesa_b' | 'in_corso' | 'concluso'
+            turn TEXT,                     -- riservato per usi futuri, non usato dalla logica attuale
+            round INTEGER NOT NULL DEFAULT 1,
+            state_a TEXT,                  -- stato di combattimento del lato A, JSON
+            state_b TEXT,                  -- stato di combattimento del lato B, JSON (NULL finche' B non si prepara)
+            pending_action_a TEXT,         -- mossa scelta da A per il round corrente, in attesa di B
+            pending_action_b TEXT,         -- mossa scelta da B per il round corrente, in attesa di A
+            log TEXT,                      -- righe dell'ultimo round risolto, JSON
+            winner TEXT,                   -- 'a' | 'b' | 'pareggio', solo se status='concluso'
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
     """)
     conn.commit()
     # Migrazione: i DB creati prima di questa funzionalita' non hanno ancora la colonna.
     cols = [r["name"] for r in conn.execute("PRAGMA table_info(characters)").fetchall()]
     if "portrait" not in cols:
         conn.execute("ALTER TABLE characters ADD COLUMN portrait TEXT")
+        conn.commit()
+    arena_cols = [r["name"] for r in conn.execute("PRAGMA table_info(arena_matches)").fetchall()]
+    if "pending_action_a" not in arena_cols:
+        conn.execute("ALTER TABLE arena_matches ADD COLUMN pending_action_a TEXT")
+        conn.execute("ALTER TABLE arena_matches ADD COLUMN pending_action_b TEXT")
         conn.commit()
     conn.close()
 
@@ -191,3 +214,80 @@ def get_all_locks():
     rows = conn.execute("SELECT faction, name FROM run_lock").fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+# ─── ARENA (duelli PvP asincroni) ────────────────────────────────────────
+def create_arena_match(faction_a, name_a, faction_b, name_b, state_a, timestamp):
+    """Crea la sfida con il lato A gia' preparato; il lato B resta NULL finche'
+    non si prepara a sua volta (vedi set_arena_state_b)."""
+    conn = get_conn()
+    cur = conn.execute(
+        "INSERT INTO arena_matches (faction_a, name_a, faction_b, name_b, status, round, state_a, created_at, updated_at) "
+        "VALUES (?,?,?,?, 'attesa_b', 1, ?, ?, ?)",
+        (faction_a, name_a, faction_b, name_b, json.dumps(state_a, ensure_ascii=False), timestamp, timestamp)
+    )
+    conn.commit()
+    match_id = cur.lastrowid
+    conn.close()
+    return match_id
+
+
+def get_arena_match(match_id):
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM arena_matches WHERE id=?", (match_id,)).fetchone()
+    conn.close()
+    if not row:
+        return None
+    match = dict(row)
+    match["state_a"] = json.loads(match["state_a"]) if match["state_a"] else None
+    match["state_b"] = json.loads(match["state_b"]) if match["state_b"] else None
+    match["log"] = json.loads(match["log"]) if match["log"] else []
+    return match
+
+
+def get_arena_matches_for(faction, name):
+    """Tutte le sfide (in attesa, in corso o appena concluse) dove questo personaggio
+    e' coinvolto, come sfidante o sfidato — piu' recenti prima."""
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT * FROM arena_matches WHERE (faction_a=? AND name_a=?) OR (faction_b=? AND name_b=?) "
+        "ORDER BY updated_at DESC",
+        (faction, name, faction, name)
+    ).fetchall()
+    conn.close()
+    matches = []
+    for row in rows:
+        match = dict(row)
+        match["state_a"] = json.loads(match["state_a"]) if match["state_a"] else None
+        match["state_b"] = json.loads(match["state_b"]) if match["state_b"] else None
+        match["log"] = json.loads(match["log"]) if match["log"] else []
+        matches.append(match)
+    return matches
+
+
+def set_arena_state_b(match_id, state_b, start_log, timestamp):
+    """Il lato B si e' preparato: il duello passa a 'in_corso', con il log degli
+    effetti "una tantum" di inizio duello (es. scudo del Novizio). Chi agisce per
+    primo in ogni round e' deciso dinamicamente da resolve_arena_round (Arciere
+    incluso), non fissato qui."""
+    conn = get_conn()
+    conn.execute(
+        "UPDATE arena_matches SET state_b=?, status='in_corso', log=?, updated_at=? WHERE id=?",
+        (json.dumps(state_b, ensure_ascii=False), json.dumps(start_log, ensure_ascii=False), timestamp, match_id)
+    )
+    conn.commit()
+    conn.close()
+
+
+def update_arena_match(match_id, timestamp, **fields):
+    """Aggiorna uno o piu' campi (state_a, state_b, turn, round, log, status, winner).
+    state_a/state_b/log vengono serializzati automaticamente se presenti."""
+    for key in ("state_a", "state_b", "log"):
+        if key in fields and fields[key] is not None:
+            fields[key] = json.dumps(fields[key], ensure_ascii=False)
+    fields["updated_at"] = timestamp
+    columns = ", ".join("%s=?" % k for k in fields)
+    conn = get_conn()
+    conn.execute("UPDATE arena_matches SET %s WHERE id=?" % columns, (*fields.values(), match_id))
+    conn.commit()
+    conn.close()

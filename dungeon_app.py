@@ -64,6 +64,9 @@ def _monster_portrait_url(enemy_name):
 
 # Config: incolla qui l'URL del webhook Discord dedicato (o lascialo vuoto per disattivare l'invio)
 DISCORD_WEBHOOK_URL = os.environ.get("DUNGEON_DISCORD_WEBHOOK", "")
+# Webhook separato per il canale Arena, cosi' le sfide PvP non si mischiano ai
+# riepiloghi delle spedizioni normali.
+ARENA_DISCORD_WEBHOOK_URL = os.environ.get("DUNGEON_ARENA_DISCORD_WEBHOOK", "")
 
 # Password semplice per la pagina di amministrazione (sblocco turno). Cambiala.
 ADMIN_PASSWORD = os.environ.get("DUNGEON_ADMIN_PASSWORD", "cambiami")
@@ -78,6 +81,15 @@ def send_discord_summary(text):
         requests.post(DISCORD_WEBHOOK_URL, json={"content": text}, timeout=8)
     except Exception:
         pass  # un fallimento nell'invio non deve mai far crollare la run del giocatore
+
+
+def send_arena_discord(text):
+    if not ARENA_DISCORD_WEBHOOK_URL or not requests:
+        return
+    try:
+        requests.post(ARENA_DISCORD_WEBHOOK_URL, json={"content": text}, timeout=8)
+    except Exception:
+        pass
 
 
 def send_discord_embed(embed):
@@ -615,6 +627,269 @@ def admin():
     unlimited_runs = db.get_setting("unlimited_runs") == "1"
     return render_template("admin.html", locks=locks, characters=characters, classes=gd.CLASSES, error=error,
                             unlimited_runs=unlimited_runs)
+
+
+# ─── ARENA (duelli PvP asincroni) ─────────────────────────────────────────
+def _arena_faction_data():
+    characters = db.get_all_characters()
+    factions = sorted({c["faction"] for c in characters})
+    char_by_faction = {}
+    for c in characters:
+        char_by_faction.setdefault(c["faction"], []).append(c["name"])
+    for names in char_by_faction.values():
+        names.sort()
+    return factions, char_by_faction
+
+
+def _arena_ability_choices(char_class):
+    """Tutte le abilita' attive della classe (le passive sono sempre automatiche,
+    non si equipaggiano): in arena sono selezionabili a prescindere dal livello,
+    tranne quelle segnate 'solo_spedizioni' (pensate solo per il PvE)."""
+    out = []
+    for a in gd.CLASSES[char_class]["abilities"]:
+        if a["type"] == "passiva":
+            continue
+        out.append(dict(a, solo_spedizioni=a["key"] in engine.ARENA_SOLO_SPEDIZIONI))
+    return out
+
+
+def _build_arena_state_from_form(faction, name, char):
+    """Costruisce lo stato di combattimento arena di un lato a partire dai campi
+    del form di preparazione — stessa logica di /start_run, ma senza il vincolo del
+    livello sulle abilita' selezionabili (vedi _arena_ability_choices)."""
+    level = engine.level_from_xp(char["xp"])
+    choices = _arena_ability_choices(char["class"])
+    selectable_keys = {a["key"] for a in choices if not a["solo_spedizioni"]}
+    chosen = [k for k in request.form.getlist("abilities") if k in selectable_keys]
+    equipped_abilities = chosen[: gd.ABILITY_LOADOUT_SIZE - 1] or list(selectable_keys)[: gd.ABILITY_LOADOUT_SIZE - 1]
+    entourage_bonus = sum(a.get("grants_extra_entourage", 0) for a in choices if a["key"] in equipped_abilities)
+
+    entourage = request.form.getlist("entourage")
+    entourage = [e for e in entourage if e in gd.ENTOURAGE_TYPES][: gd.ENTOURAGE_MAX_PICK + entourage_bonus]
+
+    owned_ids = {e["item_id"] for e in db.get_owned_equipment(faction, name)}
+    has_strumenti = "strumenti_del_mestiere" in equipped_abilities
+    slot_arma = request.form.get("slot_arma") or None
+    slot_armatura = request.form.get("slot_armatura") or None
+    slot_jolly = request.form.get("slot_jolly") or None
+    equip_ids = []
+    for item_id, expected_slot in ((slot_arma, "arma"), (slot_armatura, "armatura"), (slot_jolly, None)):
+        if not item_id or item_id not in gd.ITEMS:
+            continue
+        consentito = item_id in owned_ids or (has_strumenti and gd.ITEMS[item_id]["rarity"] == "base")
+        if consentito and (expected_slot is None or gd.ITEMS[item_id]["slot"] == expected_slot):
+            equip_ids.append(item_id)
+
+    state = engine.new_arena_state(faction, name, char["class"], level, entourage, equip_ids, equipped_abilities)
+    state["portrait_url"] = _portrait_url(faction, name, char.get("portrait"))
+    return state
+
+
+def _arena_side(match, faction, name):
+    if match["faction_a"] == faction and match["name_a"] == name:
+        return "a"
+    if match["faction_b"] == faction and match["name_b"] == name:
+        return "b"
+    return None
+
+
+def _notify_arena_conclusion(match, winner):
+    if winner == "pareggio":
+        send_arena_discord("🤝 Il duello tra **%s** e **%s** finisce in pareggio!" % (match["name_a"], match["name_b"]))
+        return
+    vincitore = match["name_a"] if winner == "a" else match["name_b"]
+    perdente_state = match["state_b"] if winner == "a" else match["state_a"]
+    perdente_nome = match["name_b"] if winner == "a" else match["name_a"]
+    modo = "si arrende" if perdente_state["leader"]["timore"] <= 0 else "cade"
+    send_arena_discord("🏆 **%s** ha sconfitto **%s** in Arena! (%s %s)" % (vincitore, perdente_nome, perdente_nome, modo))
+
+
+@app.route("/arena")
+def arena_home():
+    faction = request.args.get("faction")
+    name = request.args.get("name")
+    factions, char_by_faction = _arena_faction_data()
+
+    if not faction or not name:
+        return render_template("arena_home.html", factions=factions, char_by_faction=char_by_faction, identified=False)
+
+    char = db.get_character(faction, name)
+    if not char:
+        return redirect(url_for("arena_home"))
+
+    matches = db.get_arena_matches_for(faction, name)
+    for m in matches:
+        side = _arena_side(m, faction, name)
+        opp_side = "b" if side == "a" else "a"
+        m["my_side"] = side
+        m["opponent_faction"] = m["faction_%s" % opp_side]
+        m["opponent_name"] = m["name_%s" % opp_side]
+        if m["status"] == "attesa_b":
+            m["azione_richiesta"] = "Preparati per accettare la sfida" if side == "b" else "In attesa che l'avversario si prepari"
+        elif m["status"] == "in_corso":
+            m["azione_richiesta"] = "In attesa dell'avversario" if m.get("pending_action_%s" % side) else "Tocca a te!"
+        else:
+            m["azione_richiesta"] = "Vittoria!" if m.get("winner") == side else ("Pareggio" if m.get("winner") == "pareggio" else "Sconfitta")
+
+    opponents_by_faction = {f: [n for n in ns if not (f == faction and n == name)] for f, ns in char_by_faction.items()}
+    opponents_by_faction = {f: ns for f, ns in opponents_by_faction.items() if ns}
+
+    return render_template(
+        "arena_home.html", factions=factions, char_by_faction=char_by_faction, identified=True,
+        faction=faction, name=name, char_class=char["class"], matches=matches,
+        opponent_factions=sorted(opponents_by_faction.keys()), opponents_by_faction=opponents_by_faction,
+    )
+
+
+@app.route("/arena/prepare")
+def arena_prepare():
+    faction = request.args.get("faction")
+    name = request.args.get("name")
+    char = db.get_character(faction, name)
+    if not char:
+        return redirect(url_for("arena_home"))
+
+    match_id = request.args.get("match_id")
+    if match_id:
+        match = db.get_arena_match(int(match_id))
+        if not match or match["status"] != "attesa_b" or match["faction_b"] != faction or match["name_b"] != name:
+            return redirect(url_for("arena_home", faction=faction, name=name))
+        opp_faction, opp_name = match["faction_a"], match["name_a"]
+    else:
+        opp_faction = request.args.get("opp_faction")
+        opp_name = request.args.get("opp_name")
+        opp = db.get_character(opp_faction, opp_name) if opp_faction and opp_name else None
+        if not opp or (faction, name) == (opp_faction, opp_name):
+            return redirect(url_for("arena_home", faction=faction, name=name))
+
+    owned = db.get_owned_equipment(faction, name)
+    return render_template(
+        "arena_prepare.html", faction=faction, name=name, char_class=char["class"],
+        level=engine.level_from_xp(char["xp"]), opp_faction=opp_faction, opp_name=opp_name,
+        match_id=match_id, entourage_types=gd.ENTOURAGE_TYPES, max_pick=gd.ENTOURAGE_MAX_PICK,
+        owned=owned, owned_ids={o["item_id"] for o in owned}, items=gd.ITEMS,
+        abilities_all=_arena_ability_choices(char["class"]), ability_loadout_size=gd.ABILITY_LOADOUT_SIZE,
+        portrait_url=_portrait_url(faction, name, char.get("portrait")),
+    )
+
+
+@app.route("/arena/prepare", methods=["POST"])
+def arena_prepare_submit():
+    faction = request.form.get("faction")
+    name = request.form.get("name")
+    char = db.get_character(faction, name)
+    if not char:
+        return redirect(url_for("arena_home"))
+    state = _build_arena_state_from_form(faction, name, char)
+    timestamp = datetime.datetime.utcnow().isoformat()
+
+    match_id = request.form.get("match_id")
+    if match_id:
+        match = db.get_arena_match(int(match_id))
+        if not match or match["status"] != "attesa_b" or match["faction_b"] != faction or match["name_b"] != name:
+            return redirect(url_for("arena_home", faction=faction, name=name))
+        start_log = engine.start_arena_match(match["state_a"], state)
+        db.set_arena_state_b(match["id"], state, start_log, timestamp)
+        send_arena_discord("⚔️ Il duello tra **%s** (%s) e **%s** (%s) è iniziato!" %
+                            (match["name_a"], match["faction_a"], name, faction))
+        return redirect(url_for("arena_match", match_id=match["id"], faction=faction, name=name))
+
+    opp_faction = request.form.get("opp_faction")
+    opp_name = request.form.get("opp_name")
+    opp = db.get_character(opp_faction, opp_name)
+    if not opp or (faction, name) == (opp_faction, opp_name):
+        return redirect(url_for("arena_home", faction=faction, name=name))
+    new_id = db.create_arena_match(faction, name, opp_faction, opp_name, state, timestamp)
+    send_arena_discord("🗡️ **%s** (%s) ha sfidato **%s** (%s) in Arena!" % (name, faction, opp_name, opp_faction))
+    return redirect(url_for("arena_match", match_id=new_id, faction=faction, name=name))
+
+
+@app.route("/arena/match/<int:match_id>")
+def arena_match(match_id):
+    faction = request.args.get("faction")
+    name = request.args.get("name")
+    match = db.get_arena_match(match_id)
+    if not match:
+        return redirect(url_for("arena_home", faction=faction, name=name))
+    side = _arena_side(match, faction, name)
+    if side is None:
+        return redirect(url_for("arena_home", faction=faction, name=name))
+
+    if match["status"] == "attesa_b":
+        if side == "b":
+            return redirect(url_for("arena_prepare", faction=faction, name=name, match_id=match_id))
+        return render_template("arena_wait.html", match=match, faction=faction, name=name,
+                                messaggio="In attesa che %s si prepari..." % match["name_b"])
+
+    opp_side = "b" if side == "a" else "a"
+    my_state = match["state_%s" % side]
+    opp_state = match["state_%s" % opp_side]
+
+    if match["status"] == "concluso":
+        return render_template("arena_result.html", match=match, faction=faction, name=name, side=side,
+                                my_state=my_state, opp_state=opp_state,
+                                CLASS_PASSIVES=gd.CLASS_PASSIVES, ENTOURAGE_TYPES=gd.ENTOURAGE_TYPES)
+
+    my_pending = match.get("pending_action_%s" % side)
+    actions = engine.arena_available_actions(my_state)
+    return render_template(
+        "arena_combat.html", match=match, faction=faction, name=name, side=side,
+        my_state=my_state, opp_state=opp_state, actions=actions, waiting=bool(my_pending),
+        CLASS_PASSIVES=gd.CLASS_PASSIVES, ENTOURAGE_TYPES=gd.ENTOURAGE_TYPES,
+    )
+
+
+@app.route("/arena/match/<int:match_id>/act", methods=["POST"])
+def arena_match_act(match_id):
+    faction = request.form.get("faction")
+    name = request.form.get("name")
+    action_key = request.form.get("action_key", "attacco_fisico")
+    match = db.get_arena_match(match_id)
+    if not match or match["status"] != "in_corso":
+        return redirect(url_for("arena_match", match_id=match_id, faction=faction, name=name))
+    side = _arena_side(match, faction, name)
+    if side is None:
+        return redirect(url_for("arena_home", faction=faction, name=name))
+    if match.get("pending_action_%s" % side):
+        return redirect(url_for("arena_match", match_id=match_id, faction=faction, name=name))
+
+    my_state = match["state_%s" % side]
+    valid_keys = {a["key"] for a in engine.arena_available_actions(my_state) if a["available"]}
+    if action_key not in valid_keys:
+        return redirect(url_for("arena_match", match_id=match_id, faction=faction, name=name))
+
+    timestamp = datetime.datetime.utcnow().isoformat()
+    other_side = "b" if side == "a" else "a"
+    other_pending = match.get("pending_action_%s" % other_side)
+
+    if not other_pending:
+        db.update_arena_match(match_id, timestamp, **{"pending_action_%s" % side: action_key})
+        return redirect(url_for("arena_match", match_id=match_id, faction=faction, name=name))
+
+    action_a = action_key if side == "a" else other_pending
+    action_b = action_key if side == "b" else other_pending
+    esito, log = engine.resolve_arena_round(match["state_a"], match["state_b"], action_a, action_b)
+    fields = {
+        "state_a": match["state_a"], "state_b": match["state_b"], "log": log,
+        "round": match["round"] + 1, "pending_action_a": None, "pending_action_b": None,
+    }
+    if esito == "in_corso":
+        db.update_arena_match(match_id, timestamp, **fields)
+    else:
+        winner = {"vittoria_a": "a", "vittoria_b": "b", "pareggio": "pareggio"}[esito]
+        fields["status"] = "concluso"
+        fields["winner"] = winner
+        db.update_arena_match(match_id, timestamp, **fields)
+        _notify_arena_conclusion(match, winner)
+    return redirect(url_for("arena_match", match_id=match_id, faction=faction, name=name))
+
+
+@app.route("/arena/match/<int:match_id>/status")
+def arena_match_status(match_id):
+    match = db.get_arena_match(match_id)
+    if not match:
+        return {"error": "not_found"}, 404
+    return {"status": match["status"], "round": match["round"], "updated_at": match["updated_at"]}
 
 
 if __name__ == "__main__":

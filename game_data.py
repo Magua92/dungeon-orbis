@@ -490,6 +490,11 @@ LOOT_LEVEL_SCALING = True  # se True, roll_loot() applica level_factor() al bott
 # ─── COSTANTI PER GLI EFFETTI EPICI/LEGGENDARI (vedi ITEMS sopra) ───────────
 ITEM_CRIT_CHANCE = 0.15          # Spezzacielo: probabilita' di colpo critico per round
 RADDOPPIO_SOTTO_QUARTO_SOGLIA = 0.25  # Egida dell'Ultimo Bastione: soglia di Vita sotto cui l'Armatura raddoppia
+# In PvE il Bardo riduce la probabilita' che il nemico scriptato colpisca il Timore
+# invece della Vita (BARDO_FEAR_REDUCTION) — un concetto che non esiste in un duello
+# PvP, dove il tipo di danno dipende dall'abilita' scelta dall'avversario, non da un
+# tiro casuale. Variante per l'arena: riduce direttamente il danno al Timore subito.
+BARDO_ARENA_TIMORE_REDUCTION = 1
 
 
 def format_item_effects(effects):
