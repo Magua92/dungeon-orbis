@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 style="text-align:center">⚔ Arena ⚔</h1>
+<p style="text-align:center;opacity:0.75;font-style:italic">Sfide PvP asincrone fra i personaggi di Orbis Terrarum.</p>
+
+{% if not identified %}
+<div class="panel-box" style="max-width:420px;margin:0 auto">
+  <form method="get" action="/arena">
+    <div style="margin-bottom:0.7rem">
+      <label>La tua fazione<br>
+        <select id="faction-select" name="faction" required style="width:100%">
+          <option value="">— scegli la tua fazione —</option>
+          {% for f in factions %}<option value="{{ f }}">{{ f }}</option>{% endfor %}
+        </select>
+      </label>
+    </div>
+    <div style="margin-bottom:1rem">
+      <label>Il tuo personaggio<br>
+        <select id="name-select" name="name" required disabled style="width:100%">
+          <option value="">— prima scegli la fazione —</option>
+        </select>
+      </label>
+    </div>
+    <button type="submit" class="btn" style="width:100%">Entra in Arena →</button>
+  </form>
+</div>
+<div class="footer-note"><a href="/">← Torna a La Spedizione</a></div>
+<script>
+var CHAR_BY_FACTION = {{ char_by_faction|tojson }};
+var factionSelect = document.getElementById('faction-select');
+var nameSelect = document.getElementById('name-select');
+factionSelect.addEventListener('change', function() {
+  var faction = this.value;
+  nameSelect.innerHTML = '';
+  if (!faction) { nameSelect.disabled = true; return; }
+  var placeholder = document.createElement('option');
+  placeholder.value = ''; placeholder.textContent = '— scegli il personaggio —';
+  nameSelect.appendChild(placeholder);
+  (CHAR_BY_FACTION[faction] || []).forEach(function(n) {
+    var opt = document.createElement('option'); opt.value = n; opt.textContent = n;
+    nameSelect.appendChild(opt);
+  });
+  nameSelect.disabled = false;
+});
+</script>
+
+{% else %}
+<div class="panel-box" style="display:flex;justify-content:space-between;align-items:center">
+  <h3 style="margin:0">{{ name }} ({{ faction }}) — {{ char_class }}</h3>
+  <a href="/arena" style="font-size:0.75rem">← cambia personaggio</a>
+</div>
+
+<div class="panel-box">
+  <h3>⚔️ I tuoi duelli</h3>
+  {% if not matches %}<div style="opacity:0.7;font-size:0.85rem">Nessun duello, per ora.</div>{% endif %}
+  {% for m in matches %}
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:0.5rem 0;border-bottom:1px solid #4a3d2833;flex-wrap:wrap;gap:0.4rem">
+    <span>vs <strong>{{ m.opponent_name }}</strong> ({{ m.opponent_faction }}) — <span style="opacity:0.8">{{ m.azione_richiesta }}</span></span>
+    <a href="/arena/match/{{ m.id }}?faction={{ faction }}&name={{ name }}" class="btn" style="padding:0.3rem 0.8rem;font-size:0.75rem">Vai →</a>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="panel-box">
+  <h3>🗡️ Lancia una sfida</h3>
+  {% if not opponent_factions %}
+  <div style="opacity:0.7;font-size:0.85rem">Non ci sono altri personaggi registrati da sfidare, per ora.</div>
+  {% else %}
+  <form method="get" action="/arena/prepare">
+    <input type="hidden" name="faction" value="{{ faction }}">
+    <input type="hidden" name="name" value="{{ name }}">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0.8rem">
+      <div>
+        <label>Fazione avversaria<br>
+          <select id="opp-faction-select" name="opp_faction" required style="width:100%">
+            <option value="">— scegli —</option>
+            {% for f in opponent_factions %}<option value="{{ f }}">{{ f }}</option>{% endfor %}
+          </select>
+        </label>
+      </div>
+      <div>
+        <label>Personaggio avversario<br>
+          <select id="opp-name-select" name="opp_name" required disabled style="width:100%">
+            <option value="">— prima scegli la fazione —</option>
+          </select>
+        </label>
+      </div>
+    </div>
+    <div style="text-align:center;margin-top:0.8rem"><button type="submit" class="btn">Prepara la sfida →</button></div>
+  </form>
+  <script>
+  var OPP_BY_FACTION = {{ opponents_by_faction|tojson }};
+  var oppFactionSelect = document.getElementById('opp-faction-select');
+  var oppNameSelect = document.getElementById('opp-name-select');
+  oppFactionSelect.addEventListener('change', function() {
+    var faction = this.value;
+    oppNameSelect.innerHTML = '';
+    if (!faction) { oppNameSelect.disabled = true; return; }
+    var placeholder = document.createElement('option');
+    placeholder.value = ''; placeholder.textContent = '— scegli il personaggio —';
+    oppNameSelect.appendChild(placeholder);
+    (OPP_BY_FACTION[faction] || []).forEach(function(n) {
+      var opt = document.createElement('option'); opt.value = n; opt.textContent = n;
+      oppNameSelect.appendChild(opt);
+    });
+    oppNameSelect.disabled = false;
+  });
+  </script>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

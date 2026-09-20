@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+{% if match.winner == "pareggio" %}
+<h1 style="text-align:center">🤝 Pareggio</h1>
+{% elif match.winner == side %}
+<h1 style="text-align:center">🏆 Vittoria!</h1>
+{% else %}
+<h1 style="text-align:center">💥 Sconfitta</h1>
+{% endif %}
+
+<div class="panel-box" style="text-align:center">
+  <div><strong>{{ my_state.name }}</strong> vs <strong>{{ opp_state.name }}</strong></div>
+  <div style="opacity:0.75;font-size:0.85rem;margin-top:0.3rem">Duello concluso al round {{ match.round }}</div>
+</div>
+
+<div class="combat-log">
+  {% for line in match.log %}{% if line != '__BEAT__' %}<div class="{{ line|logclass }}">{{ line }}</div>{% endif %}{% endfor %}
+</div>
+
+<div style="text-align:center"><a href="/arena?faction={{ faction }}&name={{ name }}" class="btn">← Torna alla tua Arena</a></div>
+{% endblock %}

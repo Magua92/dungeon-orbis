@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block content %}
+{% macro status_panel(state, label) %}
+<div class="panel-box">
+  <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.6rem">
+    {% if state.portrait_url %}<img src="{{ state.portrait_url }}" alt="" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:1px solid var(--border);flex-shrink:0">{% endif %}
+    <div>
+      <strong>{{ state.name }}</strong> <span style="opacity:0.6;font-size:0.75rem">({{ label }})</span>
+      <div style="font-size:0.78rem;opacity:0.75">{{ state["class"] }} · Liv. {{ state.level }}</div>
+    </div>
+  </div>
+  <div class="bar-label"><span>❤️ Vita</span><span>{{ state.leader.pv }} / {{ state.leader.pv_max }}</span></div>
+  <div class="bar-track"><div class="bar-fill pv" style="width:{{ (state.leader.pv / state.leader.pv_max * 100) | round | int if state.leader.pv > 0 else 0 }}%"></div></div>
+  <div class="bar-label" style="margin-top:0.4rem"><span>😰 Timore</span><span>{{ state.leader.timore }} / {{ state.leader.timore_max }}</span></div>
+  <div class="bar-track"><div class="bar-fill timore" style="width:{{ (state.leader.timore / state.leader.timore_max * 100) | round | int if state.leader.timore > 0 else 0 }}%"></div></div>
+  <div style="display:flex;gap:0.6rem;margin-top:0.5rem;flex-wrap:wrap;font-size:0.75rem">
+    <span>🛡️ Armatura: {{ state.leader.armor + state.temp_buffs.armor + state.arena_status.combat_armor_bonus }}</span>
+    <span>🧠 Res. Mentale: {{ state.leader.mres + state.temp_buffs.mres + state.arena_status.combat_mres_bonus }}</span>
+  </div>
+  {% set passive = CLASS_PASSIVES.get(state["class"]) %}
+  {% if passive %}
+  <div style="margin-top:0.4rem;font-size:0.72rem" title="{{ passive.desc }}">
+    <span style="background:#1c150c;border:1px solid var(--gold);color:var(--gold-light);padding:0.15rem 0.5rem;border-radius:5px">{{ passive.icon }} {{ passive.name }}</span>
+  </div>
+  {% endif %}
+  {% if state.arena_status.shield_physical_pool > 0 or state.arena_status.shield_timore_pool > 0 or state.arena_status.shield_reduction > 0 %}
+  <div style="display:flex;gap:0.5rem;margin-top:0.4rem;flex-wrap:wrap;font-size:0.72rem">
+    {% if state.arena_status.shield_physical_pool > 0 %}<span style="background:#1c150c;border:1px solid var(--pv-light);color:var(--pv-light);padding:0.15rem 0.5rem;border-radius:5px">🛡️ Scudo Vita: {{ state.arena_status.shield_physical_pool }}</span>{% endif %}
+    {% if state.arena_status.shield_timore_pool > 0 %}<span style="background:#1c150c;border:1px solid var(--timore-light);color:var(--timore-light);padding:0.15rem 0.5rem;border-radius:5px">🔮 Scudo Timore: {{ state.arena_status.shield_timore_pool }}</span>{% endif %}
+    {% if state.arena_status.shield_reduction > 0 %}<span style="background:#1c150c;border:1px solid var(--gold-light);color:var(--gold-light);padding:0.15rem 0.5rem;border-radius:5px">🪖 Prossimo colpo attutito: -{{ state.arena_status.shield_reduction }}</span>{% endif %}
+  </div>
+  {% endif %}
+  {% if state.arena_status.stunned > 0 %}
+  <div style="margin-top:0.4rem;font-size:0.72rem"><span style="background:#1c150c;border:1px solid #e08a8a;color:#e08a8a;padding:0.15rem 0.5rem;border-radius:5px">💫 Stordito</span></div>
+  {% endif %}
+  <div style="display:flex;gap:0.4rem;margin-top:0.5rem;flex-wrap:wrap">
+    {% for m in state.seguito %}
+    <span title="{{ ENTOURAGE_TYPES.get(m.type, {}).get('name', m.type) }}" style="width:28px;height:28px;border-radius:50%;border:1px solid var(--border);background:#0f0c0688;display:flex;align-items:center;justify-content:center;font-size:0.8rem;{% if not m.alive %}opacity:0.25;filter:grayscale(1);border-style:dashed;{% endif %}">
+      {{ ENTOURAGE_TYPES.get(m.type, {}).get('icon', '❔') }}
+    </span>
+    {% endfor %}
+    {% if not state.seguito %}<span style="opacity:0.5;font-size:0.75rem">Nessun Seguito</span>{% endif %}
+  </div>
+</div>
+{% endmacro %}
+
+<h2 style="text-align:center">⚔️ Duello — Round {{ match.round }}</h2>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem;margin-bottom:1rem">
+  {{ status_panel(my_state, "tu") }}
+  {{ status_panel(opp_state, "avversario") }}
+</div>
+
+<div class="combat-log" id="combat-log">
+  {% for line in match.log %}{% if line != '__BEAT__' %}<div class="{{ line|logclass }}">{{ line }}</div>{% endif %}{% endfor %}
+</div>
+
+{% if waiting %}
+<div style="text-align:center;opacity:0.8;font-style:italic;padding:0.6rem;font-family:'Cinzel',serif;color:var(--gold-light)">In attesa della mossa di {{ opp_state.name }}...</div>
+{% else %}
+<div style="font-family:'Cinzel',serif;font-size:0.85rem;color:var(--gold-light);margin-bottom:0.5rem">Scegli la tua mossa:</div>
+{% endif %}
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.6rem" id="action-buttons">
+  {% for a in actions %}
+  {% if a.available and not waiting %}
+  <form method="post" action="/arena/match/{{ match.id }}/act" title="{{ a.desc }}">
+    <input type="hidden" name="faction" value="{{ faction }}">
+    <input type="hidden" name="name" value="{{ name }}">
+    <input type="hidden" name="action_key" value="{{ a.key }}">
+    <button type="submit" class="btn" style="width:100%;text-align:left;border-left:3px solid {% if a.type=='danno' %}#a03030{% elif a.type=='supporto' %}#3a7a5a{% else %}var(--gold-light){% endif %}">
+      <div style="font-family:'Cinzel',serif">{{ a.name }}{% if a.max_cd %} <span style="font-size:0.65rem;opacity:0.6;font-family:'Crimson Text',serif">(CD {{ a.max_cd }})</span>{% endif %}</div>
+      <div style="font-size:0.68rem;opacity:0.75;font-family:'Crimson Text',serif;font-weight:normal;margin-top:0.2rem;white-space:normal">{{ a.desc }}</div>
+    </button>
+  </form>
+  {% else %}
+  <div class="btn" title="{{ a.desc }}" style="width:100%;text-align:left;border-left:3px solid #4a3d28;opacity:0.45;cursor:not-allowed;background:#0d0a06">
+    <div style="font-family:'Cinzel',serif">{{ a.name }}
+      {% if waiting %}<span style="font-size:0.65rem;color:#e08a8a">— In attesa della mossa avversaria</span>
+      {% elif a.cd_remaining %}<span style="font-size:0.65rem;color:#e08a8a">— CD: {{ a.cd_remaining }} turno/i</span>{% endif %}
+    </div>
+    <div style="font-size:0.68rem;opacity:0.75;font-family:'Crimson Text',serif;font-weight:normal;margin-top:0.2rem;white-space:normal">{{ a.desc }}</div>
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+
+{% if waiting %}
+<script>
+var lastRound = {{ match.round }};
+setInterval(function() {
+  fetch('/arena/match/{{ match.id }}/status').then(function(r) { return r.json(); }).then(function(data) {
+    if (data.round !== lastRound || data.status !== 'in_corso') {
+      window.location.reload();
+    }
+  }).catch(function() {});
+}, 3000);
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 style="text-align:center">🗡️ Preparazione al Duello</h1>
+<div class="panel-box" style="text-align:center">
+  {% if portrait_url %}<img src="{{ portrait_url }}" alt="" style="max-width:120px;max-height:120px;border-radius:10px;border:1px solid var(--border);object-fit:cover;margin-bottom:0.6rem">{% endif %}
+  <h3 style="margin:0.3rem 0">{{ name }} — {{ char_class }} · Livello {{ level }}</h3>
+  <div style="font-size:0.8rem;opacity:0.75">contro <strong>{{ opp_name }}</strong> ({{ opp_faction }})</div>
+</div>
+
+<form method="post" action="/arena/prepare" id="arena-prepare-form">
+  <input type="hidden" name="faction" value="{{ faction }}">
+  <input type="hidden" name="name" value="{{ name }}">
+  {% if match_id %}
+  <input type="hidden" name="match_id" value="{{ match_id }}">
+  {% else %}
+  <input type="hidden" name="opp_faction" value="{{ opp_faction }}">
+  <input type="hidden" name="opp_name" value="{{ opp_name }}">
+  {% endif %}
+
+  <div class="panel-box">
+    <h3 id="entourage-title">🪖 Scegli il Seguito (massimo {{ max_pick }})</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0.6rem">
+      {% for key, e in entourage_types.items() %}
+      <label style="border:1px solid var(--border);border-radius:8px;padding:0.6rem;cursor:pointer;display:block">
+        <input type="checkbox" name="entourage" value="{{ key }}" class="entourage-check">
+        <strong>{{ e.icon }} {{ e.name }}</strong>
+        <div style="font-size:0.72rem;opacity:0.7;margin-top:0.3rem">{{ e.desc }}</div>
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="panel-box">
+    <h3>🎽 Equipaggiamento posseduto</h3>
+    {% if not owned %}<div style="opacity:0.7;font-size:0.85rem;margin-bottom:0.6rem">Non possiedi ancora nessun oggetto — gli slot resteranno vuoti, a meno che tu non abbia Strumenti del Mestiere.</div>{% endif %}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0.8rem">
+      <div><label>Slot Arma<br>
+        <select name="slot_arma" style="width:100%">
+          <option value="">— vuoto —</option>
+          {% for o in owned %}{% if items[o.item_id].slot == 'arma' %}<option value="{{ o.item_id }}">{{ items[o.item_id].name }}</option>{% endif %}{% endfor %}
+          {% for iid, it in items.items() %}{% if it.slot == 'arma' and it.rarity == 'base' and iid not in owned_ids %}<option value="{{ iid }}" class="strumenti-option" disabled>{{ it.name }} (Strumenti del Mestiere)</option>{% endif %}{% endfor %}
+        </select>
+      </label></div>
+      <div><label>Slot Armatura<br>
+        <select name="slot_armatura" style="width:100%">
+          <option value="">— vuoto —</option>
+          {% for o in owned %}{% if items[o.item_id].slot == 'armatura' %}<option value="{{ o.item_id }}">{{ items[o.item_id].name }}</option>{% endif %}{% endfor %}
+          {% for iid, it in items.items() %}{% if it.slot == 'armatura' and it.rarity == 'base' and iid not in owned_ids %}<option value="{{ iid }}" class="strumenti-option" disabled>{{ it.name }} (Strumenti del Mestiere)</option>{% endif %}{% endfor %}
+        </select>
+      </label></div>
+      <div><label>Slot Jolly (arma o armatura)<br>
+        <select name="slot_jolly" style="width:100%">
+          <option value="">— vuoto —</option>
+          {% for o in owned %}<option value="{{ o.item_id }}">{{ items[o.item_id].name }} ({{ items[o.item_id].slot }})</option>{% endfor %}
+          {% for iid, it in items.items() %}{% if it.rarity == 'base' and iid not in owned_ids %}<option value="{{ iid }}" class="strumenti-option" disabled>{{ it.name }} ({{ it.slot }}, Strumenti del Mestiere)</option>{% endif %}{% endfor %}
+        </select>
+      </label></div>
+    </div>
+    <div style="font-size:0.7rem;opacity:0.6;margin-top:0.5rem">Le opzioni "Strumenti del Mestiere" si sbloccano selezionando quell'abilità qui sotto.</div>
+  </div>
+
+  <div class="panel-box">
+    <h3>🎓 Scegli le abilità da equipaggiare (Attacco Fisico incluso automaticamente, più {{ ability_loadout_size - 1 }})</h3>
+    <div style="font-size:0.72rem;opacity:0.6;margin-bottom:0.6rem">In Arena tutte le abilità della tua classe sono sbloccate a prescindere dal livello — tranne quelle segnate "Solo Spedizioni", pensate solo per il dungeon.</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0.6rem">
+      {% for a in abilities_all %}
+      <label style="border:1px solid {{ '#4a3d28' if a.solo_spedizioni else 'var(--border)' }};border-radius:8px;padding:0.6rem;display:block;{% if a.solo_spedizioni %}opacity:0.45;background:#0d0a06;cursor:not-allowed{% else %}cursor:pointer{% endif %}">
+        <input type="checkbox" name="abilities" value="{{ a.key }}" class="ability-check" {% if a.solo_spedizioni %}disabled{% endif %} data-strumenti="{{ '1' if a.key == 'strumenti_del_mestiere' else '' }}">
+        <strong>{{ a.name }}</strong>{% if a.solo_spedizioni %} <span style="font-size:0.65rem;color:#e08a8a">— Solo Spedizioni</span>{% endif %}
+        <div style="font-size:0.72rem;opacity:0.7;margin-top:0.3rem">{{ a.desc }}</div>
+      </label>
+      {% endfor %}
+    </div>
+    <div id="ability-error" class="error" style="display:none;margin-top:0.6rem">Puoi equipaggiare al massimo {{ ability_loadout_size - 1 }} abilità (oltre all'Attacco Fisico).</div>
+  </div>
+
+  <div id="entourage-error" class="error" style="display:none;text-align:center">Hai raggiunto il limite massimo di truppe nel Seguito.</div>
+  <div style="text-align:center"><button type="submit" class="btn">Pronto per il duello →</button></div>
+</form>
+
+<script>
+document.querySelectorAll('.entourage-check').forEach(function(cb) {
+  cb.addEventListener('change', function() {
+    var checked = document.querySelectorAll('.entourage-check:checked');
+    var err = document.getElementById('entourage-error');
+    if (checked.length > {{ max_pick }}) { this.checked = false; err.style.display = 'block'; }
+    else { err.style.display = 'none'; }
+  });
+});
+document.querySelectorAll('.ability-check').forEach(function(cb) {
+  cb.addEventListener('change', function() {
+    var checked = document.querySelectorAll('.ability-check:checked');
+    var err = document.getElementById('ability-error');
+    if (checked.length > {{ ability_loadout_size - 1 }}) { this.checked = false; err.style.display = 'block'; }
+    else { err.style.display = 'none'; }
+    var strumenti = document.querySelector('.ability-check[data-strumenti="1"]');
+    var enable = strumenti && strumenti.checked;
+    document.querySelectorAll('.strumenti-option').forEach(function(opt) { opt.disabled = !enable; });
+  });
+});
+</script>
+{% endblock %}

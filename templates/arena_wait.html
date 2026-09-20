@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 style="text-align:center">⏳ Sfida lanciata</h1>
+<div class="panel-box" style="text-align:center">
+  <p>{{ messaggio }}</p>
+  <p style="opacity:0.7;font-size:0.85rem">Questa pagina si aggiorna da sola.</p>
+</div>
+<div style="text-align:center"><a href="/arena?faction={{ faction }}&name={{ name }}" class="btn">← Torna alla tua Arena</a></div>
+<script>
+setTimeout(function() { window.location.reload(); }, 3000);
+</script>
+{% endblock %}
