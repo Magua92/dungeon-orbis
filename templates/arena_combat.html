@@ -45,14 +45,23 @@
 {% endmacro %}
 
 <h2 style="text-align:center">⚔️ Duello — Round {{ match.round }}</h2>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem;margin-bottom:1rem">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem;margin-bottom:0.8rem">
   {{ status_panel(my_state, "tu") }}
   {{ status_panel(opp_state, "avversario") }}
 </div>
 
-<div class="combat-log" id="combat-log">
-  {% for line in match.log %}{% if line != '__BEAT__' %}<div class="{{ line|logclass }}">{{ line }}</div>{% endif %}{% endfor %}
+<div id="duel-stage" style="position:relative;display:flex;justify-content:center;align-items:center;gap:4rem;height:100px;margin-bottom:0.8rem">
+  {% if my_state.portrait_url %}<img id="duel-player" src="{{ my_state.portrait_url }}" alt="" style="width:84px;height:84px;border-radius:50%;object-fit:cover;border:2px solid var(--gold)">{% else %}<div id="duel-player" style="width:84px;height:84px;border-radius:50%;border:2px solid var(--gold);display:flex;align-items:center;justify-content:center;font-size:2rem;background:#1c150c">🧑</div>{% endif %}
+  <div id="duel-sword" style="position:absolute;top:50%;left:50%;font-size:1.8rem;opacity:0;transform:translate(-50%,-50%);pointer-events:none">⚔️</div>
+  {% if opp_state.portrait_url %}<img id="duel-enemy" src="{{ opp_state.portrait_url }}" alt="" style="width:84px;height:84px;border-radius:50%;object-fit:cover;border:2px solid var(--pv)">{% else %}<div id="duel-enemy" style="width:84px;height:84px;border-radius:50%;border:2px solid var(--pv);display:flex;align-items:center;justify-content:center;font-size:2rem;background:#1c150c">🧑</div>{% endif %}
 </div>
+
+<div class="combat-log" id="combat-log-live"></div>
+<noscript>
+<div class="combat-log">
+  {% for line in match.log %}<div class="{{ line|logclass }}">{{ line }}</div>{% endfor %}
+</div>
+</noscript>
 
 {% if waiting %}
 <div style="text-align:center;opacity:0.8;font-style:italic;padding:0.6rem;font-family:'Cinzel',serif;color:var(--gold-light)">In attesa della mossa di {{ opp_state.name }}...</div>
@@ -82,17 +91,149 @@
   {% endif %}
   {% endfor %}
 </div>
-
-{% if waiting %}
+{% endblock %}
+{% block sound_cues %}
 <script>
-var lastRound = {{ match.round }};
-setInterval(function() {
-  fetch('/arena/match/{{ match.id }}/status').then(function(r) { return r.json(); }).then(function(data) {
-    if (data.round !== lastRound || data.status !== 'in_corso') {
-      window.location.reload();
+(function() {
+  var lines = {{ match.log|tojson }};
+  var myName = {{ my_state.name|tojson }};
+  var oppName = {{ opp_state.name|tojson }};
+  var isFirstView = {{ 'true' if (match.round == 1 and not waiting) else 'false' }};
+  var waiting = {{ 'true' if waiting else 'false' }};
+  var matchRound = {{ match.round }};
+
+  var logEl = document.getElementById('combat-log-live');
+  var player = document.getElementById('duel-player');
+  var enemy = document.getElementById('duel-enemy');
+  var sword = document.getElementById('duel-sword');
+  var stage = document.getElementById('duel-stage');
+  var actionButtons = document.querySelectorAll('#action-buttons button[type=submit]');
+
+  function flash(el) {
+    if (!el) return;
+    el.style.transition = 'none';
+    el.style.filter = 'brightness(1.7)';
+    el.style.transform = 'scale(0.92)';
+    void el.offsetWidth;
+    el.style.transition = 'filter 0.25s, transform 0.2s';
+    el.style.filter = 'brightness(1)';
+    el.style.transform = 'scale(1)';
+  }
+
+  function swing(attacker, target) {
+    if (!sword || !attacker || !target || !stage) return;
+    var stageRect = stage.getBoundingClientRect();
+    var fromX = attacker.getBoundingClientRect().left + attacker.offsetWidth / 2 - stageRect.left;
+    var toX = target.getBoundingClientRect().left + target.offsetWidth / 2 - stageRect.left;
+    sword.style.transition = 'none';
+    sword.style.left = fromX + 'px';
+    sword.style.opacity = '1';
+    sword.style.transform = 'translate(-50%,-50%) rotate(' + (fromX < toX ? '-25deg' : '25deg') + ')';
+    void sword.offsetWidth;
+    sword.style.transition = 'left 0.32s ease-in';
+    sword.style.left = toX + 'px';
+    setTimeout(function() { sword.style.opacity = '0'; flash(target); }, 320);
+  }
+
+  function wait(ms) { return new Promise(function(resolve) { setTimeout(resolve, ms); }); }
+
+  // Aspetta davvero la fine del suono (evento 'ended' su file reali) prima di
+  // proseguire, con una rete di sicurezza in caso di file mancante o silenziato.
+  function playCue(cue) {
+    return new Promise(function(resolve) {
+      var settled = false;
+      function finish() { if (!settled) { settled = true; resolve(); } }
+      if (!cue) { setTimeout(finish, 350); return; }
+      var audioEl = window.SFX ? SFX.play(cue) : null;
+      if (audioEl) {
+        audioEl.addEventListener('ended', finish, { once: true });
+        audioEl.addEventListener('error', finish, { once: true });
+        setTimeout(finish, 5000);
+      } else {
+        setTimeout(finish, 400);
+      }
+    });
+  }
+
+  // Categoria di suono/animazione per una riga di log — l'arena non ha nemici
+  // scriptati, quindi qui i nomi sono quelli veri dei due giocatori.
+  function cueTypeForText(text) {
+    if (/^Doppio Colpo:/.test(text)) return 'doppio_colpo';
+    if (/^Formazione Difensiva:|^Pontifex Maximus:/.test(text)) return 'buff_difesa';
+    if (/scudo|Scudo|assorbe|attutisce|ignora completamente|stordisce/.test(text)) return 'shield';
+    if (/recuperi|recupera|ti infonde/.test(text)) return 'heal';
+    if (/infliggi|colpiscono per|incalza il Timore|Colpo critico|subisce \d+ danni|scende di \d+|Le fiamme infliggono/.test(text)) return 'combat';
+    return null;
+  }
+
+  // Alcune righe nominano esplicitamente chi subisce l'effetto (es. "Mario subisce
+  // 5 danni fisici."): la estraggo per sapere la direzione, indipendentemente da
+  // chi ha la mano in quel momento.
+  function extractNamedTarget(text) {
+    var m;
+    if ((m = text.match(/^(.+?) subisce \d+ danni fisici\./))) return m[1];
+    if ((m = text.match(/^Il Timore di (.+?) scende di \d+\./))) return m[1];
+    if ((m = text.match(/^Lo scudo (?:magico )?di (.+?) (?:attutisce|assorbe)/))) return m[1];
+    if ((m = text.match(/^Le fiamme infliggono \d+ danni a (.+?)\./))) return m[1];
+    if ((m = text.match(/^(.+?) recupera \d+ (?:Vita|Timore) \(cura passiva\)\./))) return m[1];
+    if ((m = text.match(/incalza il Timore di (.+?) per/))) return m[1];
+    return null;
+  }
+
+  var currentActor = null;
+  var events = [];
+  lines.forEach(function(line) {
+    var header = line.match(/^— (.+) —$/);
+    if (header) {
+      currentActor = header[1];
+      events.push({ text: line, cue: null });
+      return;
     }
-  }).catch(function() {});
-}, 3000);
+    var target = extractNamedTarget(line) || (currentActor === myName ? oppName : myName);
+    events.push({ text: line, cue: cueTypeForText(line), to: target });
+  });
+
+  async function playSequence() {
+    for (var i = 0; i < events.length; i++) {
+      var ev = events[i];
+      var div = document.createElement('div');
+      div.textContent = ev.text;
+      if (/recuperi|recupera|ti infonde/.test(ev.text)) div.className = 'log-heal';
+      logEl.appendChild(div);
+      logEl.scrollTop = logEl.scrollHeight;
+
+      if (!ev.cue) { await wait(350); continue; }
+      var toIsMe = ev.to === myName;
+      var targetEl = toIsMe ? player : enemy;
+      var sourceEl = toIsMe ? enemy : player;
+
+      if (ev.cue === 'combat' || ev.cue === 'doppio_colpo') {
+        swing(sourceEl, targetEl);
+        await playCue(ev.cue === 'doppio_colpo' ? 'doppio_colpo' : (toIsMe ? 'hit_taken' : 'hit_dealt'));
+      } else {
+        flash(targetEl);
+        await playCue(ev.cue);
+      }
+    }
+  }
+
+  actionButtons.forEach(function(b) { b.disabled = true; b.style.opacity = '0.5'; b.style.cursor = 'wait'; });
+  var startPromise = isFirstView ? playCue('duel_start') : wait(300);
+  startPromise.then(playSequence).then(function() {
+    if (!waiting) {
+      actionButtons.forEach(function(b) { b.disabled = false; b.style.opacity = ''; b.style.cursor = ''; });
+    }
+  });
+
+  if (waiting) {
+    setInterval(function() {
+      fetch('/arena/match/{{ match.id }}/status').then(function(r) { return r.json(); }).then(function(data) {
+        if (data.round !== matchRound || data.status !== 'in_corso') {
+          window.location.reload();
+        }
+      }).catch(function() {});
+    }, 3000);
+  }
+})();
 </script>
-{% endif %}
 {% endblock %}
