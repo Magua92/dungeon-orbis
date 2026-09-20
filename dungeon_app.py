@@ -719,6 +719,13 @@ def admin():
             elif action == "reset_guild":
                 db.reset_guild_treasury()
                 send_guild_discord("🔄 La cassa della Gilda è stata azzerata manualmente da un amministratore.")
+            elif action == "delete_arena_match":
+                try:
+                    mid = int(request.form.get("match_id", "0"))
+                except ValueError:
+                    mid = 0
+                if mid:
+                    db.delete_arena_match(mid)
     locks = db.get_all_locks()
     characters = db.get_all_characters()
     for c in characters:
@@ -729,7 +736,8 @@ def admin():
     except (TypeError, ValueError):
         guild_goal = 300
     return render_template("admin.html", locks=locks, characters=characters, classes=gd.CLASSES, error=error,
-                            unlimited_runs=unlimited_runs, guild_goal=guild_goal)
+                            unlimited_runs=unlimited_runs, guild_goal=guild_goal,
+                            arena_matches=db.get_ongoing_arena_matches())
 
 
 # ─── ARENA (duelli PvP asincroni) ─────────────────────────────────────────
@@ -985,6 +993,25 @@ def arena_match_act(match_id):
         fields["winner"] = winner
         db.update_arena_match(match_id, timestamp, **fields)
         _notify_arena_conclusion(match, winner)
+    return redirect(url_for("arena_match", match_id=match_id, faction=faction, name=name))
+
+
+@app.route("/arena/match/<int:match_id>/surrender", methods=["POST"])
+def arena_match_surrender(match_id):
+    faction = request.form.get("faction")
+    name = request.form.get("name")
+    match = db.get_arena_match(match_id)
+    if not match or match["status"] != "in_corso":
+        return redirect(url_for("arena_match", match_id=match_id, faction=faction, name=name))
+    side = _arena_side(match, faction, name)
+    if side is None:
+        return redirect(url_for("arena_home", faction=faction, name=name))
+    winner = "b" if side == "a" else "a"
+    timestamp = datetime.datetime.utcnow().isoformat()
+    db.update_arena_match(match_id, timestamp, status="concluso", winner=winner,
+                           pending_action_a=None, pending_action_b=None)
+    send_arena_discord("🏳️ **%s** si arrende nell'ignominia più totale e nel disonore imperituro contro **%s**!" %
+                        (match["name_%s" % side], match["name_%s" % winner]))
     return redirect(url_for("arena_match", match_id=match_id, faction=faction, name=name))
 
 

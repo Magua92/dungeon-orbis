@@ -240,6 +240,28 @@ def create_arena_match(faction_a, name_a, faction_b, name_b, state_a, timestamp)
     return match_id
 
 
+def get_ongoing_arena_matches():
+    """Duelli non ancora conclusi (in attesa o in corso), per il pannello admin."""
+    conn = get_conn()
+    rows = conn.execute("SELECT * FROM arena_matches WHERE status != 'concluso' ORDER BY created_at DESC").fetchall()
+    conn.close()
+    matches = []
+    for row in rows:
+        m = dict(row)
+        m["state_a"] = json.loads(m["state_a"]) if m["state_a"] else None
+        m["state_b"] = json.loads(m["state_b"]) if m["state_b"] else None
+        m["log"] = json.loads(m["log"]) if m["log"] else []
+        matches.append(m)
+    return matches
+
+
+def delete_arena_match(match_id):
+    conn = get_conn()
+    conn.execute("DELETE FROM arena_matches WHERE id=?", (match_id,))
+    conn.commit()
+    conn.close()
+
+
 def get_arena_match(match_id):
     conn = get_conn()
     row = conn.execute("SELECT * FROM arena_matches WHERE id=?", (match_id,)).fetchone()
