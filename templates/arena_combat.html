@@ -65,7 +65,16 @@
 
 {% if waiting %}
 <div style="text-align:center;opacity:0.8;font-style:italic;padding:0.6rem;font-family:'Cinzel',serif;color:var(--gold-light)">In attesa della mossa di {{ opp_state.name }}...</div>
-{% else %}
+{% endif %}
+
+{% if match.round == 1 and not waiting %}
+<div id="duel-start-gate" style="text-align:center;padding:1.5rem 0">
+  <button id="duel-start-btn" type="button" class="btn" style="font-size:1rem;padding:0.8rem 2rem;border-color:var(--gold)">⚔ Entra nell'arena</button>
+</div>
+{% endif %}
+
+<div id="action-area"{% if match.round == 1 and not waiting %} style="display:none"{% endif %}>
+{% if not waiting %}
 <div style="font-family:'Cinzel',serif;font-size:0.85rem;color:var(--gold-light);margin-bottom:0.5rem">Scegli la tua mossa:</div>
 {% endif %}
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.6rem" id="action-buttons">
@@ -90,6 +99,7 @@
   </div>
   {% endif %}
   {% endfor %}
+</div>
 </div>
 
 <div style="text-align:center;margin-top:1.2rem">
@@ -167,11 +177,15 @@
   // Categoria di suono/animazione per una riga di log — l'arena non ha nemici
   // scriptati, quindi qui i nomi sono quelli veri dei due giocatori.
   function cueTypeForText(text) {
+    // Il Seguito non produce mai suoni/animazioni propri: cura passiva, contrattacchi
+    // di Martello/Ariete, bonus del Penitente e consumo del Novizio restano visibili
+    // nel log ma silenziosi, altrimenti ogni round diventa un accavallarsi di suoni.
+    if (/\(cura passiva\)|^I Compagni del Martello di |^L'Ariete di |^Penitente:|si consuma per proteggerlo/.test(text)) return null;
     if (/^Doppio Colpo:/.test(text)) return 'doppio_colpo';
     if (/^Formazione Difensiva:|^Pontifex Maximus:/.test(text)) return 'buff_difesa';
+    if (/infligg|colpiscono per|incalza il Timore|Colpo critico|subisce \d+ danni|scende di \d+|Le fiamme infliggono/.test(text)) return 'combat';
     if (/scudo|Scudo|assorbe|attutisce|ignora completamente|stordisce/.test(text)) return 'shield';
     if (/recuperi|recupera|ti infonde/.test(text)) return 'heal';
-    if (/infliggi|colpiscono per|incalza il Timore|Colpo critico|subisce \d+ danni|scende di \d+|Le fiamme infliggono/.test(text)) return 'combat';
     return null;
   }
 
@@ -226,13 +240,30 @@
     }
   }
 
-  actionButtons.forEach(function(b) { b.disabled = true; b.style.opacity = '0.5'; b.style.cursor = 'wait'; });
-  var startPromise = isFirstView ? playCue('duel_start') : wait(300);
-  startPromise.then(playSequence).then(function() {
-    if (!waiting) {
-      actionButtons.forEach(function(b) { b.disabled = false; b.style.opacity = ''; b.style.cursor = ''; });
-    }
-  });
+  function runSequence() {
+    actionButtons.forEach(function(b) { b.disabled = true; b.style.opacity = '0.5'; b.style.cursor = 'wait'; });
+    playSequence().then(function() {
+      if (!waiting) {
+        actionButtons.forEach(function(b) { b.disabled = false; b.style.opacity = ''; b.style.cursor = ''; });
+      }
+    });
+  }
+
+  // Il suono d'inizio duello, se lasciato partire da solo al caricamento della
+  // pagina (specie quando ci si arriva da un ricaricamento automatico, non da un
+  // click), viene spesso bloccato in silenzio dalle policy anti-autoplay del
+  // browser. Un click reale sblocca sempre l'audio: da qui il pulsante dedicato.
+  var gate = document.getElementById('duel-start-gate');
+  var actionArea = document.getElementById('action-area');
+  if (isFirstView && gate) {
+    document.getElementById('duel-start-btn').addEventListener('click', function() {
+      gate.style.display = 'none';
+      if (actionArea) actionArea.style.display = '';
+      playCue('duel_start').then(runSequence);
+    });
+  } else {
+    runSequence();
+  }
 
   if (waiting) {
     setInterval(function() {

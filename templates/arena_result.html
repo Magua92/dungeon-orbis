@@ -19,3 +19,18 @@
 
 <div style="text-align:center"><a href="/arena?faction={{ faction }}&name={{ name }}" class="btn">← Torna alla tua Arena</a></div>
 {% endblock %}
+{% block sound_cues %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  if (window.SFX) {
+    {% if match.winner == "pareggio" %}
+    // nessun suono dedicato per il pareggio
+    {% elif match.winner == side %}
+    SFX.play('victory');
+    {% else %}
+    SFX.play('defeat');
+    {% endif %}
+  }
+});
+</script>
+{% endblock %}
