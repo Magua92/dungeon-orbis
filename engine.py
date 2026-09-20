@@ -95,33 +95,41 @@ def new_run_state(faction, name, char_class, level, entourage_types, equip_item_
         "result": None,  # 'vittoria' | 'ritirata_timore' | 'ritirata_morte'
         "incudine_free_used": 0,  # Amministratore: "Abile nelle trattative"
         "special_boss_fought": None,  # boss speciale incontrato in questa run (es. "il_diaulo"), se presente
+        "shop_used": {"incudine": False, "sacco_monete": False},  # una volta a stanza, si resetta cambiando stanza
+        "shop_used_for_room_index": -1,  # a quale room_index si riferisce shop_used (per il reset pigro)
+        "shop_log": None,  # feedback dell'ultimo acquisto, mostrato una volta sola in room.html
+        "bonus_xp": 0,  # PE extra da eventi della Stanza Misteriosa, sommati a fine run
+        "pending_effects": [],  # effetti (es. veleno) che scattano all'inizio del PROSSIMO combattimento
+        "mystery_event": None,  # evento pescato per la Stanza Misteriosa, in attesa di una scelta
     }
     return run
 
 
 # ─── GENERAZIONE STANZE ──────────────────────────────────────────────────
+def reset_shop_if_new_room(run):
+    """Forgia e Mercenario si possono usare una volta a stanza: quando si arriva
+    davvero a una stanza nuova (non quando si ricarica la stessa dopo un acquisto),
+    il contatore si azzera."""
+    if run.get("shop_used_for_room_index") != run["room_index"]:
+        run["shop_used"] = {"incudine": False, "sacco_monete": False}
+        run["shop_used_for_room_index"] = run["room_index"]
+
+
 def generate_rooms_plan():
-    """Genera, per ognuna delle ROOMS_PER_RUN stanze, un set di 3 tipi di stanza distinti
-    tra cui scegliere. Garantisce che la Fontana compaia almeno ogni 2 stanze."""
+    """Genera, per ognuna delle ROOMS_PER_RUN stanze, le opzioni tra cui scegliere per
+    concludere la stanza. La Battaglia c'e' sempre; Fontana e Stanza Misteriosa
+    compaiono ciascuna con la propria probabilita' indipendente (possono comparire
+    insieme). Forgia e Mercenario non sono piu' "scelte della stanza": sono azioni
+    sempre disponibili che non la concludono, gestite a parte (vedi /shop_action)."""
     plan = []
-    rooms_since_fontana = 0
-    all_types = list(gd.ROOM_TYPES.keys())
     for i in range(gd.ROOMS_PER_RUN):
-        options = {"battaglia"}  # la minaccia e' sempre un'opzione disponibile
-        force_fontana = rooms_since_fontana >= 2
-        if force_fontana:
-            options.add("fontana")
-        remaining = [t for t in all_types if t not in options]
-        random.shuffle(remaining)
-        while len(options) < 3 and remaining:
-            options.add(remaining.pop())
-        options = list(options)
+        options = ["battaglia"]
+        if i + 1 >= gd.FONTANA_MIN_ROOM and random.random() < gd.FONTANA_APPEARANCE_CHANCE:
+            options.append("fontana")
+        if random.random() < gd.MYSTERY_ROOM_CHANCE:
+            options.append("stanza_misteriosa")
         random.shuffle(options)
         plan.append(options)
-        if "fontana" in options:
-            rooms_since_fontana = 0
-        else:
-            rooms_since_fontana += 1
     return plan
 
 
@@ -318,6 +326,18 @@ def start_combat(run, tier):
     run["log"] = []
     if special_boss == "il_diaulo":
         run["log"].append("IL DIAULO emerge dalle ombre, e il tuo Timore trema solo a guardarlo.")
+    if run.get("pending_effects"):
+        for eff in run["pending_effects"]:
+            if eff["type"] == "veleno":
+                run["combat"]["player_bleed_turns"] = eff["turns"]
+                run["combat"]["player_bleed_dmg"] = eff["dmg"]
+                run["combat"]["player_bleed_target"] = "pv"
+                run["log"].append("Il veleno bevuto in precedenza si manifesta: perderai %d PV a turno per %d turni." % (eff["dmg"], eff["turns"]))
+            elif eff["type"] == "dmg_debuff":
+                run["combat"]["player_dmg_debuff"] = eff["amount"]
+                run["combat"]["player_dmg_debuff_turns"] = eff["turns"]
+                run["log"].append("Il rito incompiuto ti indebolisce: i tuoi colpi infliggeranno %d danni in meno per %d turni." % (eff["amount"], eff["turns"]))
+        run["pending_effects"] = []
     novizi = [m for m in run["seguito"] if m["alive"] and m["type"] == "novizio"]
     if novizi:
         run["combat"]["shield_physical_pool"] += gd.NOVIZIO_SHIELD_PHYSICAL
@@ -1233,6 +1253,181 @@ def roll_loot(run, is_boss):
 
 
 # ─── STANZE NON DI COMBATTIMENTO ─────────────────────────────────────────
+def _roll_mystery_item_drop(run):
+    """Estrae un oggetto casuale (stesse rarita' pesate del bottino normale) e lo mette
+    in coda ai drop della run, applicato a fine spedizione come gli altri."""
+    weights = gd.NORMAL_DROP_RARITY_WEIGHTS
+    rarity = random.choices(list(weights.keys()), weights=list(weights.values()))[0]
+    candidates = [k for k, v in gd.ITEMS.items() if v["rarity"] == rarity]
+    if not candidates:
+        return None
+    item_id = random.choice(candidates)
+    run.setdefault("pending_drops", []).append(item_id)
+    return item_id
+
+
+def resolve_mystery_event(run, event_key, choice_key):
+    """Risolve la scelta del giocatore in un evento della Stanza Misteriosa. Ritorna
+    il log da mostrare; alcuni effetti (veleno, debuff) restano "in sospeso" e si
+    manifestano solo all'inizio del prossimo combattimento (vedi start_combat)."""
+    log = []
+    leader = run["leader"]
+
+    if event_key == "calice":
+        if choice_key == "bevi":
+            if random.random() < 0.5:
+                leader["pv"] = leader["pv_max"]
+                leader["timore"] = leader["timore_max"]
+                log.append("Il liquido ha un sapore dolce: ti senti completamente rigenerato.")
+            else:
+                run["pending_effects"].append({"type": "veleno", "dmg": gd.MYSTERY_VELENO_DMG, "turns": gd.MYSTERY_VELENO_TURNI})
+                log.append("Il liquido brucia in gola: qualcosa di velenoso si è insinuato in te, e si manifesterà nel prossimo scontro.")
+        elif choice_key == "rovescia":
+            log.append("Rovesci il calice: il liquido sparisce assorbito dalla pietra, senza alcun effetto.")
+        else:
+            log.append("Ignori il calice e trovi la via d'uscita.")
+
+    elif event_key == "specchio":
+        if choice_key == "distruggi":
+            if random.random() < 0.7:
+                stat = random.choice(["dmg", "armor", "mres"])
+                run["temp_buffs"][stat] = run["temp_buffs"].get(stat, 0) + 1
+                label = {"dmg": "Danno Fisico", "armor": "Armatura", "mres": "Res. Mentale"}[stat]
+                log.append("Lo specchio esplode in schegge di luce: +1 %s per il resto della run." % label)
+            else:
+                leader["pv"] = max(0, leader["pv"] - gd.MYSTERY_SPECCHIO_DANNO)
+                log.append("Le schegge ti feriscono: -%d PV." % gd.MYSTERY_SPECCHIO_DANNO)
+        elif choice_key == "fissa":
+            if random.random() < 0.6:
+                leader["timore"] = min(leader["timore_max"], leader["timore"] + gd.MYSTERY_TIMORE_PICCOLO)
+                log.append("Il tuo riflesso ti restituisce calma: +%d Timore." % gd.MYSTERY_TIMORE_PICCOLO)
+            else:
+                leader["timore"] = max(0, leader["timore"] - gd.MYSTERY_TIMORE_PICCOLO)
+                log.append("Il riflesso distorto ti terrorizza: -%d Timore." % gd.MYSTERY_TIMORE_PICCOLO)
+        else:
+            log.append("Ignori lo specchio e prosegui.")
+
+    elif event_key == "cripta":
+        if choice_key == "forza_pv":
+            leader["pv"] = max(0, leader["pv"] - gd.MYSTERY_CRIPTA_COSTO)
+            item_id = _roll_mystery_item_drop(run)
+            log.append("Forzi la cripta a costo di %d PV: dentro trovi %s!" % (gd.MYSTERY_CRIPTA_COSTO, gd.ITEMS[item_id]["name"] if item_id else "qualcosa"))
+        elif choice_key == "forza_timore":
+            leader["timore"] = max(0, leader["timore"] - gd.MYSTERY_CRIPTA_COSTO)
+            item_id = _roll_mystery_item_drop(run)
+            log.append("Forzi la cripta a costo di %d Timore: dentro trovi %s!" % (gd.MYSTERY_CRIPTA_COSTO, gd.ITEMS[item_id]["name"] if item_id else "qualcosa"))
+        else:
+            log.append("Lasci la cripta sigillata.")
+
+    elif event_key == "mercante":
+        if choice_key == "accetta":
+            posseduti = [r for r in gd.RESOURCE_TYPES if run["treasure"].get(r, 0) > 0]
+            if posseduti:
+                risorsa = random.choice(posseduti)
+                costo = min(gd.MYSTERY_MERCANTE_RISORSA_COSTO, run["treasure"][risorsa])
+                run["treasure"][risorsa] -= costo
+                item_id = _roll_mystery_item_drop(run)
+                log.append("Cedi %d %s in cambio di %s." % (costo, risorsa, gd.ITEMS[item_id]["name"] if item_id else "un oggetto misterioso"))
+            else:
+                item_id = _roll_mystery_item_drop(run)
+                log.append("Non hai nulla da offrire, ma il mercante ti dona comunque %s, con un sorriso enigmatico." % (gd.ITEMS[item_id]["name"] if item_id else "un oggetto"))
+        else:
+            log.append("Rifiuti lo scambio e il mercante svanisce nell'ombra.")
+
+    elif event_key == "sussurro":
+        if choice_key == "resisti":
+            leader["timore"] = max(0, leader["timore"] - gd.MYSTERY_SUSSURRO_TIMORE_COSTO)
+            log.append("Resisti al sussurro, ma ti costa comunque %d Timore." % gd.MYSTERY_SUSSURRO_TIMORE_COSTO)
+        else:
+            if random.random() < 0.5:
+                run["bonus_xp"] = run.get("bonus_xp", 0) + gd.MYSTERY_SUSSURRO_XP_BONUS
+                log.append("Il sussurro ti rivela qualcosa di utile: +%d PE a fine spedizione." % gd.MYSTERY_SUSSURRO_XP_BONUS)
+            else:
+                leader["timore"] = max(0, leader["timore"] - gd.MYSTERY_SUSSURRO_TIMORE_GRAVE)
+                log.append("Il sussurro trova la tua paura più profonda: -%d Timore." % gd.MYSTERY_SUSSURRO_TIMORE_GRAVE)
+
+    elif event_key == "altare":
+        if choice_key == "offri" and run["treasure"].get("oro", 0) >= gd.MYSTERY_ALTARE_COSTO_ORO:
+            run["treasure"]["oro"] -= gd.MYSTERY_ALTARE_COSTO_ORO
+            leader["pv"] = min(leader["pv_max"], leader["pv"] + gd.MYSTERY_ALTARE_CURA)
+            log.append("Offri %d Oro all'altare: recuperi %d PV." % (gd.MYSTERY_ALTARE_COSTO_ORO, gd.MYSTERY_ALTARE_CURA))
+        elif choice_key == "offri":
+            log.append("Non hai abbastanza Oro da offrire: l'altare resta silenzioso.")
+        else:
+            log.append("Non offri nulla e ti allontani dall'altare.")
+
+    elif event_key == "catene":
+        if choice_key == "libera":
+            if random.random() < 0.7:
+                run["seguito"].append({"type": "mercenario", "alive": True, "charges": None})
+                log.append("Liberi il prigioniero: si unisce a te come mercenario per questa spedizione.")
+            else:
+                leader["timore"] = max(0, leader["timore"] - gd.MYSTERY_CATENE_TIMORE_TRAPPOLA)
+                log.append("Era una trappola: la figura svanisce in una risata, -%d Timore." % gd.MYSTERY_CATENE_TIMORE_TRAPPOLA)
+        else:
+            log.append("Lasci il prigioniero alle sue catene.")
+
+    elif event_key == "biblioteca":
+        if choice_key == "studia":
+            run["bonus_xp"] = run.get("bonus_xp", 0) + gd.MYSTERY_BIBLIOTECA_XP_BONUS
+            log.append("Studi i tomi polverosi: +%d PE a fine spedizione." % gd.MYSTERY_BIBLIOTECA_XP_BONUS)
+        else:
+            log.append("Vai via senza toccare nulla.")
+
+    elif event_key == "rituale":
+        if choice_key == "completa":
+            if random.random() < 0.5:
+                stat = random.choice(["dmg", "armor", "mres"])
+                run["temp_buffs"][stat] = run["temp_buffs"].get(stat, 0) + 1
+                label = {"dmg": "Danno Fisico", "armor": "Armatura", "mres": "Res. Mentale"}[stat]
+                log.append("Il rito si completa con successo: +1 %s per il resto della run." % label)
+            else:
+                run["pending_effects"].append({"type": "dmg_debuff", "amount": gd.MYSTERY_RITUALE_DEBUFF_DANNO, "turns": gd.MYSTERY_RITUALE_DEBUFF_TURNI})
+                log.append("Il rito va storto: ti senti indebolito, l'effetto si manifesterà nel prossimo scontro.")
+        else:
+            log.append("Lasci il cerchio rituale incompiuto.")
+
+    elif event_key == "baratto":
+        if choice_key == "offri_pv" and leader["pv"] > gd.MYSTERY_BARATTO_COSTO_PV:
+            leader["pv"] -= gd.MYSTERY_BARATTO_COSTO_PV
+            run["temp_buffs"]["dmg"] = run["temp_buffs"].get("dmg", 0) + 1
+            log.append("Offri %d PV in sangue: +1 Danno Fisico per il resto della run." % gd.MYSTERY_BARATTO_COSTO_PV)
+        elif choice_key == "offri_pv":
+            log.append("Non hai abbastanza Vita da offrire: il patto resta non firmato.")
+        else:
+            log.append("Rifiuti il patto di sangue.")
+
+    elif event_key == "statua":
+        if choice_key == "consola":
+            leader["timore"] = min(leader["timore_max"], leader["timore"] + gd.MYSTERY_STATUA_TIMORE_BONUS)
+            log.append("Consoli la statua piangente: +%d Timore." % gd.MYSTERY_STATUA_TIMORE_BONUS)
+        elif choice_key == "deridi":
+            if random.random() < 0.5:
+                run["treasure"]["oro"] = run["treasure"].get("oro", 0) + gd.MYSTERY_STATUA_ORO_BONUS
+                log.append("Deridi la statua: tra le sue lacrime scivolano %d Oro." % gd.MYSTERY_STATUA_ORO_BONUS)
+            else:
+                leader["timore"] = max(0, leader["timore"] - gd.MYSTERY_STATUA_TIMORE_TRAPPOLA)
+                log.append("La statua sembra offendersi: -%d Timore." % gd.MYSTERY_STATUA_TIMORE_TRAPPOLA)
+        else:
+            log.append("Ignori la statua e prosegui.")
+
+    elif event_key == "forziere":
+        if choice_key == "scassina":
+            if random.random() < 0.5:
+                run["treasure"]["oro"] = run["treasure"].get("oro", 0) + gd.MYSTERY_FORZIERE_ORO_BONUS
+                log.append("Scassini il forziere con successo: +%d Oro." % gd.MYSTERY_FORZIERE_ORO_BONUS)
+            else:
+                leader["pv"] = max(0, leader["pv"] - gd.MYSTERY_FORZIERE_PV_TRAPPOLA)
+                log.append("Una trappola scatta: -%d PV." % gd.MYSTERY_FORZIERE_PV_TRAPPOLA)
+        else:
+            log.append("Lasci il forziere incatenato dove si trova.")
+
+    else:
+        log.append("Non succede nulla di particolare.")
+
+    return log
+
+
 def resolve_fontana(run):
     log = []
     fallen = [m for m in run["seguito"] if not m["alive"]]
@@ -1299,4 +1494,5 @@ def compute_xp_gain(run):
     xp = rooms_cleared * 10
     if run["result"] == "vittoria":
         xp += 30
+    xp += run.get("bonus_xp", 0)
     return xp

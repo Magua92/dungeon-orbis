@@ -315,6 +315,11 @@ def room():
     if run["room_index"] >= gd.ROOMS_PER_RUN:
         return redirect(url_for("miniboss"))
     options = run["rooms_plan"][run["room_index"]]
+    engine.reset_shop_if_new_room(run)
+    shop_log = run.get("shop_log")
+    if shop_log:
+        run["shop_log"] = None
+        session["run"] = run
 
     room_actions = [a for a in gd.CLASSES[run["class"]]["abilities"]
                      if a.get("room_action") and a["key"] in run.get("equipped_abilities", [])
@@ -330,7 +335,26 @@ def room():
                             incudine_cost=engine.incudine_cost(run),
                             incudine_amount=engine.incudine_buff_amount(run),
                             sacco_monete_cost=engine.sacco_monete_cost(run),
+                            shop_used=run["shop_used"], shop_log=shop_log,
                             room_actions=room_actions, next_room_options=next_room_options)
+
+
+@app.route("/shop_action", methods=["POST"])
+def shop_action():
+    run = _run()
+    if not run or run.get("combat"):
+        return redirect(url_for("room"))
+    engine.reset_shop_if_new_room(run)
+    action = request.form.get("action")
+    if action == "incudine" and not run["shop_used"]["incudine"]:
+        stat_choice = request.form.get("stat_choice", "dmg")
+        run["shop_log"] = engine.resolve_incudine(run, stat_choice)
+        run["shop_used"]["incudine"] = True
+    elif action == "sacco_monete" and not run["shop_used"]["sacco_monete"]:
+        run["shop_log"] = engine.resolve_sacco_monete(run)
+        run["shop_used"]["sacco_monete"] = True
+    session["run"] = run
+    return redirect(url_for("room"))
 
 
 @app.route("/choose_room", methods=["POST"])
@@ -349,16 +373,45 @@ def choose_room():
         session["run"] = run
         return redirect(url_for("combat"))
 
+    if room_type == "stanza_misteriosa":
+        event_key = random.choice(list(gd.MYSTERY_EVENTS.keys()))
+        run["mystery_event"] = event_key
+        session["run"] = run
+        return redirect(url_for("mystery_room"))
+
     if room_type == "fontana":
         log = engine.resolve_fontana(run)
-    elif room_type == "incudine":
-        stat_choice = request.form.get("stat_choice", "dmg")
-        log = engine.resolve_incudine(run, stat_choice)
-    elif room_type == "sacco_monete":
-        log = engine.resolve_sacco_monete(run)
     else:
         log = []
 
+    run["log"] = log
+    run["room_index"] += 1
+    session["run"] = run
+    return render_template("room_result.html", run=run, log=log, room_finished=True,
+                            sound_cues=sound_cues_from_log(log))
+
+
+@app.route("/mystery_room")
+def mystery_room():
+    run = _run()
+    if not run or not run.get("mystery_event"):
+        return redirect(url_for("room"))
+    event = gd.MYSTERY_EVENTS[run["mystery_event"]]
+    return render_template("mystery_room.html", run=run, event=event)
+
+
+@app.route("/mystery_choice", methods=["POST"])
+def mystery_choice():
+    run = _run()
+    if not run or not run.get("mystery_event"):
+        return redirect(url_for("room"))
+    event_key = run["mystery_event"]
+    valid_choices = {c[0] for c in gd.MYSTERY_EVENTS[event_key]["options"]}
+    choice_key = request.form.get("choice_key")
+    if choice_key not in valid_choices:
+        return redirect(url_for("mystery_room"))
+    log = engine.resolve_mystery_event(run, event_key, choice_key)
+    run["mystery_event"] = None
     run["log"] = log
     run["room_index"] += 1
     session["run"] = run

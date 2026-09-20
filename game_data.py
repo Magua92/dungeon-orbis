@@ -316,15 +316,107 @@ ROOMS_PER_RUN = 7
 
 # ─── TIPI DI STANZA ───────────────────────────────────────────────────────────
 ROOM_TYPES = {
-    "battaglia":     {"icon": "⚔️", "name": "Sala delle Ombre",  "desc": "Un nemico si cela nell'oscurità."},
-    "fontana":       {"icon": "⛲", "name": "Fontana Sacra",     "desc": "Le acque risanano le ferite."},
-    "incudine":      {"icon": "🔨", "name": "Forgia Antica",     "desc": "Investi il tesoro in un potenziamento per questa run."},
-    "sacco_monete":  {"icon": "💰", "name": "Sacco di Monete",   "desc": "Assumi un mercenario temporaneo."},
+    "battaglia":         {"icon": "⚔️", "name": "Sala delle Ombre",     "desc": "Un nemico si cela nell'oscurità."},
+    "fontana":           {"icon": "⛲", "name": "Fontana Sacra",        "desc": "Le acque risanano le ferite."},
+    "incudine":          {"icon": "🔨", "name": "Forgia Antica",        "desc": "Investi il tesoro in un potenziamento per questa run."},
+    "sacco_monete":      {"icon": "💰", "name": "Sacco di Monete",      "desc": "Assumi un mercenario temporaneo."},
+    "stanza_misteriosa": {"icon": "❔", "name": "Stanza Misteriosa",    "desc": "Qualcosa di inaspettato ti attende — non saprai cosa finché non entri."},
 }
+
+MYSTERY_ROOM_CHANCE = 0.20  # come la Fontana: conclude la stanza, salta il combattimento
+
+# ─── EVENTI DELLA STANZA MISTERIOSA (uno pescato a caso ogni volta) ─────────
+# Ogni evento ha sempre un'opzione "sicura" al 100% oltre a quelle rischiose.
+MYSTERY_EVENTS = {
+    "calice": {
+        "name": "Il Calice Colmo", "icon": "🍷",
+        "text": "Ti trovi in una stanza buia con una flebile luce puntata su un calice ricolmo di uno strano liquido.",
+        "options": [("bevi", "Bevi il contenuto"), ("rovescia", "Rovescialo per terra"), ("ignora", "Ignoralo e cerca la via d'uscita")],
+    },
+    "specchio": {
+        "name": "Lo Specchio Incrinato", "icon": "🪞",
+        "text": "Un riflesso distorto ti fissa da uno specchio incrinato appoggiato al muro.",
+        "options": [("distruggi", "Distruggilo"), ("fissa", "Fissalo a lungo"), ("ignora", "Ignoralo e prosegui")],
+    },
+    "cripta": {
+        "name": "La Cripta Sigillata", "icon": "⚰️",
+        "text": "Una cripta di pietra, sigillata da secoli, promette qualcosa al suo interno.",
+        "options": [("forza_pv", "Forzala (paga Vita)"), ("forza_timore", "Forzala (paga Timore)"), ("lascia", "Lasciala stare")],
+    },
+    "mercante": {
+        "name": "Il Mercante Errante", "icon": "🧙",
+        "text": "Una figura incappucciata emerge dall'ombra, offrendoti uno scambio.",
+        "options": [("accetta", "Accetta lo scambio"), ("rifiuta", "Rifiuta e vai via")],
+    },
+    "sussurro": {
+        "name": "Il Sussurro nel Buio", "icon": "👂",
+        "text": "Qualcosa nel buio bisbiglia la tua paura più grande.",
+        "options": [("resisti", "Resisti e prosegui"), ("ascolta", "Ascolta il sussurro")],
+    },
+    "altare": {
+        "name": "L'Altare Dimenticato", "icon": "🕯️",
+        "text": "Un altare coperto di polvere sembra ancora attivo, in cerca di un'offerta.",
+        "options": [("offri", "Offri Oro"), ("non_offrire", "Non offrire nulla")],
+    },
+    "catene": {
+        "name": "Le Catene Spezzate", "icon": "⛓️",
+        "text": "Una figura incatenata ti osserva in silenzio, in attesa di una decisione.",
+        "options": [("libera", "Liberalo"), ("lascia", "Lascialo incatenato")],
+    },
+    "biblioteca": {
+        "name": "La Biblioteca Polverosa", "icon": "📚",
+        "text": "Scaffali carichi di tomi dimenticati riempiono la stanza.",
+        "options": [("studia", "Studia i tomi"), ("vai_via", "Vai via")],
+    },
+    "rituale": {
+        "name": "Il Rituale a Metà", "icon": "🔮",
+        "text": "Un cerchio rituale incompiuto attende che qualcuno lo completi.",
+        "options": [("completa", "Completalo"), ("lascia", "Lascialo incompiuto")],
+    },
+    "baratto": {
+        "name": "Il Baratto di Sangue", "icon": "🩸",
+        "text": "Un patto silenzioso ti viene offerto: il tuo sangue in cambio di potere.",
+        "options": [("offri_pv", "Offri Vita"), ("rifiuta", "Rifiuta")],
+    },
+    "statua": {
+        "name": "La Statua Piangente", "icon": "🗿",
+        "text": "Una statua di pietra piange lacrime che non dovrebbero esistere.",
+        "options": [("consola", "Consolala"), ("deridi", "Deridila"), ("ignora", "Ignorala")],
+    },
+    "forziere": {
+        "name": "Il Forziere Incatenato", "icon": "🔒",
+        "text": "Un forziere chiuso da pesanti catene arrugginite giace in un angolo.",
+        "options": [("scassina", "Scassinalo"), ("lascia", "Lascialo stare")],
+    },
+}
+
+MYSTERY_VELENO_DMG = 4
+MYSTERY_VELENO_TURNI = 3
+MYSTERY_SPECCHIO_DANNO = 3
+MYSTERY_TIMORE_PICCOLO = 5
+MYSTERY_CRIPTA_COSTO = 5
+MYSTERY_MERCANTE_RISORSA_COSTO = 3
+MYSTERY_SUSSURRO_TIMORE_COSTO = 3
+MYSTERY_SUSSURRO_TIMORE_GRAVE = 12
+MYSTERY_SUSSURRO_XP_BONUS = 15
+MYSTERY_ALTARE_COSTO_ORO = 4
+MYSTERY_ALTARE_CURA = 8
+MYSTERY_CATENE_TIMORE_TRAPPOLA = 6
+MYSTERY_BIBLIOTECA_XP_BONUS = 10
+MYSTERY_RITUALE_DEBUFF_DANNO = 2
+MYSTERY_RITUALE_DEBUFF_TURNI = 2
+MYSTERY_BARATTO_COSTO_PV = 6
+MYSTERY_STATUA_TIMORE_BONUS = 4
+MYSTERY_STATUA_TIMORE_TRAPPOLA = 6
+MYSTERY_STATUA_ORO_BONUS = 3
+MYSTERY_FORZIERE_ORO_BONUS = 6
+MYSTERY_FORZIERE_PV_TRAPPOLA = 6
 
 INCUDINE_BASE_COST = 3   # in Oro
 INCUDINE_BUFF_AMOUNT = 1
 SACCO_MONETE_COST = 5    # in Oro
+FONTANA_APPEARANCE_CHANCE = 0.25  # probabilita' che la Fontana compaia come opzione (solo dalla stanza 4 in poi)
+FONTANA_MIN_ROOM = 4  # numero di stanza (1-based) da cui la Fontana puo' iniziare a comparire
 
 INCUDINE_OPTIONS = [
     {"stat": "dmg",   "label": "+1 Danno Fisico"},
