@@ -76,11 +76,18 @@
 <div class="panel-box">
   <h3>🏛️ Traguardo Gilda</h3>
   <div style="font-size:0.85rem;margin-bottom:0.6rem">Attuale: <strong>{{ guild_goal }}</strong> punti (risorse + gloria combinate)</div>
-  <form method="post" style="display:flex;gap:0.5rem;align-items:center">
+  <form method="post" style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.8rem">
     <input type="number" name="guild_goal" value="{{ guild_goal }}" min="1" style="width:120px">
     <input type="password" name="password" placeholder="Password amministratore" style="flex:1">
     <input type="hidden" name="action" value="set_guild_goal">
     <button type="submit" class="btn">Aggiorna</button>
+  </form>
+  <div style="font-size:0.7rem;opacity:0.6;margin-bottom:0.5rem">Il reset avviene già in automatico (con report su Discord) quando si raggiunge il traguardo. Usa questo solo per azzerare a mano, senza aspettare.</div>
+  <form method="post" style="display:flex;gap:0.5rem;align-items:center"
+        onsubmit="return confirm('Azzerare del tutto la cassa della Gilda? Non si può annullare.');">
+    <input type="password" name="password" placeholder="Password amministratore" style="flex:1">
+    <input type="hidden" name="action" value="reset_guild">
+    <button type="submit" class="btn" style="border-color:#8c2a2a;color:#e08a8a">Azzera cassa ora</button>
   </form>
 </div>
 {% endblock %}
