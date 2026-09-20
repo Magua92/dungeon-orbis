@@ -32,8 +32,8 @@
   {% for line in run.log %}<div>{{ line }}</div>{% endfor %}
 </div>
 </noscript>
-{% if run.combat.special_boss == 'il_diaulo' %}
-<audio id="diaulo-music" src="/static/music/il_diaulo.mp3" loop></audio>
+{% if run.combat.special_boss %}
+<audio id="special-boss-music" src="/static/music/{{ run.combat.special_boss }}.mp3" loop></audio>
 {% endif %}
 
 {% if not defeat_pending %}
@@ -89,6 +89,12 @@
       // il suono e' gia' scattato sulla riga col nome della mossa, altrimenti raddoppia.
       if (/^Subisci |Il tuo Timore scende di |Lo schianto gli costa/.test(text)) return null;
     }
+    if (specialBoss === 'uomorsomaiale') {
+      if (/^Sventrare:/.test(text)) return 'uomorsomaiale_sventrare';
+      if (/^Ruggito:/.test(text)) return 'uomorsomaiale_ruggito';
+      if (/L'Uomorsomaiale attacca/.test(text)) return 'uomorsomaiale_base';
+      if (/^Subisci /.test(text)) return null;
+    }
     if (/infliggi|colpiscono per|colpisce per|danni al nemico|danni fisici e|danni al Timore del nemico|critico/.test(text)) return 'hit_dealt';
     if (/Subisci|attacca la tua psiche|ti indebolisce|ti ferisce in profondità|sanguinamento|perdi /.test(text)) return 'hit_taken';
     if (/recuperi|ti infonde|si riprende/.test(text)) return 'heal';
@@ -137,6 +143,8 @@
         else if (cue === 'shield') { if (window.SFX) SFX.play('shield'); }
         else if (cue === 'diaulo_amico' || cue === 'diaulo_butta' || cue === 'diaulo_base') { swing(enemy, player); if (window.SFX) SFX.play(cue); }
         else if (cue === 'diaulo_signore') { flash(player); flash(enemy); if (window.SFX) SFX.play(cue); }
+        else if (cue === 'uomorsomaiale_base' || cue === 'uomorsomaiale_sventrare') { swing(enemy, player); if (window.SFX) SFX.play(cue); }
+        else if (cue === 'uomorsomaiale_ruggito') { flash(player); if (window.SFX) SFX.play(cue); }
         var div = document.createElement('div');
         div.textContent = line;
         logEl.appendChild(div);
@@ -153,18 +161,21 @@
     }
   }, defeatPending ? delay + 2500 : delay);
 
-  // Colonna sonora dedicata, solo durante il combattimento con IL DIAULO. Ogni azione
-  // ricarica la pagina, quindi salviamo il punto in cui eravamo arrivati e riprendiamo
-  // da li' — non e' un loop perfettamente continuo, ma niente riparte da zero ogni volta.
-  if (specialBoss === 'il_diaulo' && localStorage.getItem('sfx_muted') !== '1') {
-    var music = document.getElementById('diaulo-music');
+  // Colonna sonora dedicata, valida per qualunque boss speciale (basta un file in
+  // static/music/<id_boss>.mp3). Ogni azione ricarica la pagina, quindi salviamo il
+  // punto in cui eravamo arrivati e riprendiamo da li' — non e' un loop perfettamente
+  // continuo, ma niente riparte da zero ogni volta. La posizione e' salvata per boss,
+  // cosi' due boss diversi non si "rubano" a vicenda il punto di ripresa.
+  if (specialBoss && localStorage.getItem('sfx_muted') !== '1') {
+    var music = document.getElementById('special-boss-music');
     if (music) {
-      var pos = parseFloat(localStorage.getItem('diaulo_music_pos') || '0');
+      var posKey = 'music_pos_' + specialBoss;
+      var pos = parseFloat(localStorage.getItem(posKey) || '0');
       music.currentTime = pos || 0;
       music.volume = 0.25;
       music.play().catch(function() {});
       music.addEventListener('timeupdate', function() {
-        localStorage.setItem('diaulo_music_pos', music.currentTime);
+        localStorage.setItem(posKey, music.currentTime);
       });
     }
   }
