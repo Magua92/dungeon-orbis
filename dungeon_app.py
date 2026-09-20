@@ -23,6 +23,7 @@ app.jinja_env.globals["ROOMS_PER_RUN"] = gd.ROOMS_PER_RUN
 app.jinja_env.globals["CLASS_PASSIVES"] = gd.CLASS_PASSIVES
 app.jinja_env.globals["ENTOURAGE_TYPES"] = gd.ENTOURAGE_TYPES
 app.jinja_env.globals["format_item_effects"] = gd.format_item_effects
+app.jinja_env.filters["logclass"] = lambda line: log_line_class(line)
 app.secret_key = os.environ.get("DUNGEON_SECRET_KEY", "cambia-questa-chiave-in-produzione")
 app.config["MAX_CONTENT_LENGTH"] = 3 * 1024 * 1024  # 3 MB, guardia contro upload enormi
 
@@ -173,6 +174,19 @@ def choose_class():
     return render_template("choose_class.html", classes=gd.CLASSES, error=None)
 
 
+def log_line_class(line):
+    """CSS class per colorare una riga del log fuori dal combattimento live (dove
+    la colorazione e' gestita in JS): rosso per il sanguinamento, verde per il veleno,
+    blu per la cura. Nessuna delle tre gioca un suono qui ne' nel combattimento live."""
+    if line.startswith("Il sanguinamento ") or "ti ferisce in profondità: sanguini" in line or "la ferita sanguina" in line:
+        return "log-bleed"
+    if line.startswith("Il veleno ") or "inietta un veleno" in line:
+        return "log-poison"
+    if "recuperi" in line or "ti infonde" in line or "si riprende" in line:
+        return "log-heal"
+    return ""
+
+
 def sound_cues_from_log(log_lines, outcome=None):
     """Deduce quali effetti sonori generici far scattare in pagina, leggendo il testo
     del log dell'ultimo round/evento invece di dover tracciare un segnale dedicato in
@@ -185,7 +199,10 @@ def sound_cues_from_log(log_lines, outcome=None):
         cues.append("defeat")
     if any(s in text for s in ("infliggi", "colpiscono per", "colpisce per", "danni al nemico", "danni fisici e", "danni al Timore del nemico", "critico")):
         cues.append("hit_dealt")
-    if any(s in text for s in ("Subisci", "attacca la tua psiche", "ti indebolisce", "ti ferisce in profondità", "sanguinamento", "perdi ")):
+    # "sanguinamento"/"ti ferisce in profondità"/"perdi " non compaiono qui: sono
+    # sanguinamento/veleno (niente suono, solo colore, vedi log_line_class) oppure gia'
+    # coperti da "attacca la tua psiche" per i colpi reali al Timore.
+    if any(s in text for s in ("Subisci", "attacca la tua psiche", "ti indebolisce")):
         cues.append("hit_taken")
     if any(s in text for s in ("recuperi", "ti infonde", "si riprende")):
         cues.append("heal")

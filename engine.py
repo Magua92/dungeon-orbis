@@ -324,7 +324,7 @@ def start_combat(run, tier):
         "raffica_potenziata": False, "enemy_weaken_turns": 0, "enemy_weaken_amount": 0,
         "enemy_buff_stat": None, "enemy_buff_turns": 0,
         "player_debuff_stat": None, "player_debuff_turns": 0,
-        "player_bleed_turns": 0, "player_bleed_dmg": 0, "player_bleed_target": None,
+        "player_bleed_turns": 0, "player_bleed_dmg": 0, "player_bleed_target": None, "player_bleed_kind": None,
         "diaulo_signore_cd": 0,
         "uomorsomaiale_sventrare_cd": 0, "uomorsomaiale_ruggito_cd": 0,
         "player_dmg_debuff": 0, "player_dmg_debuff_turns": 0,
@@ -338,6 +338,7 @@ def start_combat(run, tier):
                 run["combat"]["player_bleed_turns"] = eff["turns"]
                 run["combat"]["player_bleed_dmg"] = eff["dmg"]
                 run["combat"]["player_bleed_target"] = "pv"
+                run["combat"]["player_bleed_kind"] = "veleno"
                 run["log"].append("Il veleno bevuto in precedenza si manifesta: perderai %d PV a turno per %d turni." % (eff["dmg"], eff["turns"]))
             elif eff["type"] == "dmg_debuff":
                 run["combat"]["player_dmg_debuff"] = eff["amount"]
@@ -450,6 +451,7 @@ def _il_diaulo_turn(run, combat, log):
         combat["player_bleed_turns"] = spec["veleno_turni"]
         combat["player_bleed_dmg"] = spec["veleno_dmg"]
         combat["player_bleed_target"] = "pv"
+        combat["player_bleed_kind"] = "veleno"
         log.append("Amico dei Rettiliani: IL DIAULO inietta un veleno che drena %d PV a turno per %d turni (ignora armatura e scudi)." % (spec["veleno_dmg"], spec["veleno_turni"]))
         return
     elif roll < spec["amico_rettiliani_chance"] + spec["buttacettete_chance"]:
@@ -495,6 +497,7 @@ def _uomorsomaiale_turn(run, combat, log):
         combat["player_bleed_turns"] = spec["sventrare_bleed_turni"]
         combat["player_bleed_dmg"] = spec["sventrare_bleed_dmg"]
         combat["player_bleed_target"] = "pv"
+        combat["player_bleed_kind"] = "sanguinamento"
         log.append("Sventrare: la ferita sanguina per %d PV a turno per %d turni." % (spec["sventrare_bleed_dmg"], spec["sventrare_bleed_turni"]))
         return
 
@@ -974,15 +977,18 @@ def resolve_combat_round(run, action_key):
 
     if combat.get("player_bleed_turns", 0) > 0:
         bleed_dmg = combat.get("player_bleed_dmg", 0)
+        kind = combat.get("player_bleed_kind") or "sanguinamento"
+        verbo = "Il veleno" if kind == "veleno" else "Il sanguinamento"
         if combat.get("player_bleed_target") == "timore":
             run["leader"]["timore"] -= bleed_dmg
-            log.append("Il sanguinamento logora la tua psiche: perdi %d Timore." % bleed_dmg)
+            log.append("%s logora la tua psiche: perdi %d Timore." % (verbo, bleed_dmg))
         else:
             run["leader"]["pv"] -= bleed_dmg
-            log.append("Il sanguinamento ti costa %d Vita." % bleed_dmg)
+            log.append("%s ti costa %d Vita." % (verbo, bleed_dmg))
         combat["player_bleed_turns"] -= 1
         if combat["player_bleed_turns"] <= 0:
             combat["player_bleed_target"] = None
+            combat["player_bleed_kind"] = None
         outcome = _check_defeat(run, log)
         if outcome:
             return outcome
@@ -1125,6 +1131,7 @@ def resolve_combat_round(run, action_key):
             combat["player_bleed_turns"] = gd.ENEMY_BLEED_TURNS
             combat["player_bleed_dmg"] = bleed_dmg
             combat["player_bleed_target"] = target
+            combat["player_bleed_kind"] = "sanguinamento"
             nome_stat = "Vita" if target == "pv" else "Timore"
             log.append("%s ti ferisce in profondità: sanguini, perdendo %d %s a turno per %d turni." %
                         (combat["name"], bleed_dmg, nome_stat, gd.ENEMY_BLEED_TURNS))
