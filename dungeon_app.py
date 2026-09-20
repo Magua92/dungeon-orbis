@@ -426,7 +426,12 @@ def combat_act():
         run["finished"] = True
         run["result"] = esito
         session["run"] = run
-        return redirect(url_for("run_end"))
+        # Non si salta subito al riepilogo: si rimostra la schermata di combattimento
+        # un'ultima volta (con l'animazione del round fatale), poi il JS reindirizza
+        # da solo a fine sequenza, cosi' il giocatore fa in tempo a leggere cos'e' successo.
+        return render_template("combat.html", run=run, actions=[], is_boss=is_boss,
+                                enemy_portrait_url=_monster_portrait_url(run["combat"]["name"]),
+                                defeat_pending=True)
 
     session["run"] = run
     return redirect(url_for("combat"))

@@ -368,7 +368,7 @@ ITEMS = {
     "amuleto_quiete":        {"name": "Amuleto della Quiete",          "slot": "armatura", "rarity": "base",        "effects": {"mres": 1},                      "lore": "Un ciondolo semplice, benedetto dai sacerdoti dell'Arcontato per calmare i nuovi coloni."},
     "bracciale_filo":        {"name": "Bracciale dei Figli del Filo",  "slot": "armatura", "rarity": "base",        "effects": {"mres": 1, "negoziazione_pct": 0.10}, "lore": "Intrecciato dagli Iorph per chi cerca la parola prima della lama."},
     "collana_silenzio":      {"name": "Collana del Silenzio",          "slot": "armatura", "rarity": "base",        "effects": {"mres": 2},                      "lore": "Tolta dal collo di un cadavere che, dicono, non aveva mai smesso di sorridere."},
-    "mantello_bruma":        {"name": "Mantello di Bruma Sottile",     "slot": "armatura", "rarity": "epica",       "effects": {"mres": 2, "armor": -1},         "lore": "Chi lo indossa dice di sentire meno il freddo — e meno anche la paura."},
+    "mantello_bruma":        {"name": "Mantello di Bruma Sottile",     "slot": "armatura", "rarity": "epica",       "effects": {"mres": 2, "armor": 1},          "lore": "Chi lo indossa dice di sentire meno il freddo — e meno anche la paura."},
     "velo_nebrahil":         {"name": "Velo della Nébrahil",           "slot": "armatura", "rarity": "leggendaria", "effects": {"mres": 3, "immunita_primo_pauroso": True}, "lore": "Si narra fosse indossato dalla Regina stessa, nei giorni in cui la nebbia sembrava non finire mai."},
 }
 
@@ -384,11 +384,11 @@ def format_item_effects(effects):
     promettere ai giocatori un effetto che il gioco non applica per davvero."""
     parts = []
     if effects.get("dmg"):
-        parts.append("+%d Danno" % effects["dmg"])
+        parts.append("%+d Danno" % effects["dmg"])
     if effects.get("armor"):
-        parts.append("+%d Armatura" % effects["armor"])
+        parts.append("%+d Armatura" % effects["armor"])
     if effects.get("mres"):
-        parts.append("+%d Res. Mentale" % effects["mres"])
+        parts.append("%+d Res. Mentale" % effects["mres"])
     if effects.get("iniziativa"):
         parts.append("%+d Iniziativa" % effects["iniziativa"])
     return ", ".join(parts) if parts else "Nessun effetto meccanico attivo al momento"
