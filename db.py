@@ -324,6 +324,13 @@ def add_guild_contribution(faction, name, loot, boss_beaten, timestamp):
     conn.close()
 
 
+def reset_guild_treasury():
+    conn = get_conn()
+    conn.execute("DELETE FROM guild_contributions")
+    conn.commit()
+    conn.close()
+
+
 def get_guild_leaderboard():
     """Una voce per fazione, ordinate per totale punti (risorse + gloria) discendente,
     ciascuna con l'elenco dei personaggi che hanno contribuito, ordinato allo stesso modo."""

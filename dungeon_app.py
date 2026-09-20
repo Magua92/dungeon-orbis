@@ -643,6 +643,23 @@ def donate_to_guild():
             lines.append("　• %s: %d" % (m["name"], m["total"]))
     send_guild_discord("\n".join(lines))
     send_guild_discord("\n".join(lines))
+
+    if grand_total >= goal and leaderboard:
+        vincitore = leaderboard[0]
+        report = [
+            "🎉 **Traguardo raggiunto!** La Gilda ha raccolto %d punti (obiettivo: %d)." % (grand_total, goal),
+            "", "🏆 Fazione vincitrice: **%s** con %d punti" % (vincitore["faction"], vincitore["total"]),
+            "", "Classifica finale:",
+        ]
+        for f in leaderboard:
+            report.append("**%s** — %d" % (f["faction"], f["total"]))
+            for m in f["members"]:
+                report.append("　• %s: %d" % (m["name"], m["total"]))
+        report.append("")
+        report.append("La cassa è stata azzerata: si riparte da zero per il prossimo traguardo!")
+        send_guild_discord("\n".join(report))
+        db.reset_guild_treasury()
+
     return redirect(url_for("home"))
 
 
@@ -699,6 +716,9 @@ def admin():
                 except ValueError:
                     nuovo_traguardo = 300
                 db.set_setting("guild_goal", str(nuovo_traguardo))
+            elif action == "reset_guild":
+                db.reset_guild_treasury()
+                send_guild_discord("🔄 La cassa della Gilda è stata azzerata manualmente da un amministratore.")
     locks = db.get_all_locks()
     characters = db.get_all_characters()
     for c in characters:
