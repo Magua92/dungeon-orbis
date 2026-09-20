@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 {% set c = run.combat %}
-<h2 style="text-align:center">{% if is_boss %}👑 Il Miniboss{% else %}⚔️ Combattimento{% endif %} — Round {{ c.round }}</h2>
+<h2 style="text-align:center">{% if defeat_pending %}💥 L'ultimo scontro{% elif is_boss %}👑 Il Miniboss{% else %}⚔️ Combattimento{% endif %} — Round {{ c.round }}</h2>
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem;align-items:start;margin-bottom:1rem">
   {% include "_status.html" %}
@@ -36,6 +36,7 @@
 <audio id="diaulo-music" src="/static/music/il_diaulo.mp3" loop></audio>
 {% endif %}
 
+{% if not defeat_pending %}
 <div style="font-family:'Cinzel',serif;font-size:0.85rem;color:var(--gold-light);margin-bottom:0.5rem">Scegli la tua azione:</div>
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.6rem" id="action-buttons">
   {% for a in actions %}
@@ -58,12 +59,16 @@
   {% endif %}
   {% endfor %}
 </div>
+{% else %}
+<div style="text-align:center;opacity:0.7;font-style:italic;font-size:0.85rem">La spedizione sta per concludersi...</div>
+{% endif %}
 {% endblock %}
 {% block sound_cues %}
 <script>
 (function() {
   var lines = {{ run.log|tojson }};
   var specialBoss = {{ (run.combat.special_boss or '')|tojson }};
+  var defeatPending = {{ 'true' if defeat_pending else 'false' }};
   var logEl = document.getElementById('combat-log-live');
   var player = document.getElementById('duel-player');
   var enemy = document.getElementById('duel-enemy');
@@ -141,8 +146,12 @@
     delay += cue ? 900 : 400;  // le righe "silenziose" (senza suono/animazione) avanzano piu' in fretta
   });
   setTimeout(function() {
-    actionButtons.forEach(function(b) { b.disabled = false; b.style.opacity = ''; b.style.cursor = ''; });
-  }, delay);
+    if (defeatPending) {
+      window.location.href = '/run_end';
+    } else {
+      actionButtons.forEach(function(b) { b.disabled = false; b.style.opacity = ''; b.style.cursor = ''; });
+    }
+  }, defeatPending ? delay + 2500 : delay);
 
   // Colonna sonora dedicata, solo durante il combattimento con IL DIAULO. Ogni azione
   // ricarica la pagina, quindi salviamo il punto in cui eravamo arrivati e riprendiamo
