@@ -135,11 +135,19 @@ def _run():
 
 @app.route("/", methods=["GET", "POST"])
 def home():
+    characters = db.get_all_characters()
+    factions = sorted({c["faction"] for c in characters})
+    char_by_faction = {}
+    for c in characters:
+        char_by_faction.setdefault(c["faction"], []).append(c["name"])
+    for names in char_by_faction.values():
+        names.sort()
+
     if request.method == "POST":
         faction = request.form.get("faction", "").strip()
         name = request.form.get("name", "").strip()
         if not faction or not name:
-            return render_template("home.html", error="Inserisci sia la fazione che il nome del personaggio.", characters=db.get_all_characters())
+            return render_template("home.html", error="Inserisci sia la fazione che il nome del personaggio.", factions=factions, char_by_faction=char_by_faction)
         char = db.get_character(faction, name)
         if not char:
             session["pending_char"] = {"faction": faction, "name": name}
@@ -147,7 +155,7 @@ def home():
         if db.is_run_locked(faction, name):
             return render_template("locked.html", faction=faction, name=name)
         return redirect(url_for("prepare", faction=faction, name=name))
-    return render_template("home.html", error=None, characters=db.get_all_characters())
+    return render_template("home.html", error=None, factions=factions, char_by_faction=char_by_faction)
 
 
 @app.route("/choose_class", methods=["GET", "POST"])
