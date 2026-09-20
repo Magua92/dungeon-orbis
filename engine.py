@@ -94,6 +94,7 @@ def new_run_state(faction, name, char_class, level, entourage_types, equip_item_
         "finished": False,
         "result": None,  # 'vittoria' | 'ritirata_timore' | 'ritirata_morte'
         "incudine_free_used": 0,  # Amministratore: "Abile nelle trattative"
+        "special_boss_fought": None,  # boss speciale incontrato in questa run (es. "il_diaulo"), se presente
     }
     return run
 
@@ -259,6 +260,10 @@ def start_combat(run, tier):
         data = gd.get_enemy_tier(tier, level)
         name, icon, archetype = random.choice(data["pool"])
         enemy_armor, enemy_mres = gd.enemy_defense(archetype, level)
+    if tier == "boss":
+        # sopravvive anche dopo che run["combat"] viene svuotato (vittoria) o quando si
+        # arriva a run_end: serve per personalizzare il resoconto sul boss incontrato.
+        run["special_boss_fought"] = special_boss
     run["cooldowns"] = {}  # i cooldown si resettano a ogni nuovo combattimento, non durano tutta la run
     run["combat"] = {
         "tier": tier, "name": name, "icon": icon, "archetype": archetype, "special_boss": special_boss,
@@ -1097,16 +1102,19 @@ def cleanup_temp_mercenaries(run):
 # ─── LOOT ─────────────────────────────────────────────────────────────────
 def roll_loot(run, is_boss):
     resource = random.choice(gd.RESOURCE_TYPES)
-    lo, hi = gd.BOSS_LOOT_AMOUNT if is_boss else gd.NORMAL_LOOT_AMOUNT
-    amount = random.randint(lo, hi)
-    if getattr(gd, "LOOT_LEVEL_SCALING", False):
-        amount = round(amount * gd.level_factor(run["level"]))
-    if run["class"] == "Esploratore" and run["level"] >= 5:
-        amount = int(amount * 1.5)
     equipped = run.get("equipped_abilities", [])
     raddoppio = "drago_della_finanza" in equipped or "mappatore_esperto" in equipped
-    if raddoppio:
-        amount *= 2
+    if resource == "gemme":
+        amount = 2 if is_boss else 1  # risorsa rara: fissa (non scalata da livello o raddoppi), un po' più generosa contro i boss
+    else:
+        lo, hi = gd.BOSS_LOOT_AMOUNT if is_boss else gd.NORMAL_LOOT_AMOUNT
+        amount = random.randint(lo, hi)
+        if getattr(gd, "LOOT_LEVEL_SCALING", False):
+            amount = round(amount * gd.level_factor(run["level"]))
+        if run["class"] == "Esploratore" and run["level"] >= 5:
+            amount = int(amount * 1.5)
+        if raddoppio:
+            amount *= 2
     run["treasure"][resource] = run["treasure"].get(resource, 0) + amount
     log = ["Bottino: +%d %s." % (amount, resource)]
 

@@ -92,7 +92,10 @@ def build_expedition_report(run, xp_gained, loot, drop_names):
     """Costruisce sia l'embed Discord sia il testo mostrato nella pagina di fine
     spedizione, cosi' i due non possono disallinearsi: stessa storia, due formati."""
     faction, name, char_class, result = run["faction"], run["name"], run["class"], run["result"]
-    variants = gd.DISCORD_NARRATIVE.get(result, {}).get(char_class)
+    special_boss = run.get("special_boss_fought")
+    variants = gd.SPECIAL_BOSS_NARRATIVE.get(special_boss, {}).get(result) if special_boss else None
+    if not variants:
+        variants = gd.DISCORD_NARRATIVE.get(result, {}).get(char_class)
     if not variants:
         variants = [("Spedizione conclusa per {name}", "{name} torna a {faction}.")]
     title_tmpl, desc_tmpl = random.choice(variants)

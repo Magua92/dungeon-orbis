@@ -544,3 +544,34 @@ DISCORD_NARRATIVE = {
         ],
     },
 }
+
+# ─── NARRATIVA DEI BOSS SPECIALI (sostituisce DISCORD_NARRATIVE quando il boss
+# incontrato in quella run è uno di questi, indipendentemente dalla classe) ──────
+SPECIAL_BOSS_NARRATIVE = {
+    "il_diaulo": {
+        "vittoria": [
+            ("{name} ha respinto IL DIAULO nell'oscurità da cui è venuto",
+             "Non un mostro qualunque, ma il Terrore in persona — e {name} lo ha guardato negli occhi senza cedere. {faction} non dimenticherà questa notte."),
+            ("IL DIAULO è caduto per mano di {name}",
+             "I sussurri si sono spenti, il Timore si è placato. Pochi a {faction} crederanno al racconto, ma la cicatrice che porta {name} dice il contrario."),
+            ("{name} ha spezzato il patto infernale",
+             "Amico dei Rettiliani, Buttacettete, Signore Oscuro — ogni sua mossa ha fallito. {faction} accoglie un eroe, non solo un sopravvissuto."),
+        ],
+        "sconfitta_morte": [
+            ("IL DIAULO ha spezzato {name}, non la sua volontà",
+             "Il Seguito lo ha portato fuori privo di sensi, svuotato di tutto ciò che aveva raccolto. Il Terrore, per questa volta, ha vinto lui."),
+            ("{name} è stato travolto da IL DIAULO",
+             "Nessun bottino, nessuna gloria — solo il ricordo di occhi che sussurravano il suo nome. Torna a {faction} vivo, e questo basterà per ora."),
+            ("Il patto infernale ha avuto la meglio su {name}",
+             "Portato fuori dalle profondità senza nulla in mano, {faction} lo rivedrà con un conto ancora aperto con IL DIAULO."),
+        ],
+        "sconfitta_timore": [
+            ("{name} si è ritirato davanti a IL DIAULO, il bottino ancora in mano",
+             "Non tutti possono guardare il Terrore negli occhi. {name} lo ha fatto, e ha scelto di vivere per riprovarci."),
+            ("IL DIAULO ha spezzato il coraggio di {name}, non le sue tasche",
+             "Torna a {faction} turbato nello spirito, ma con ogni cosa raccolta ancora al sicuro."),
+            ("{name} ha sentito il sussurro di IL DIAULO, e si è ritirato in tempo",
+             "Meglio vivi e turbati che tra le sue grinfie: torna a {faction} con il bottino intatto."),
+        ],
+    },
+}
