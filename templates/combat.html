@@ -95,6 +95,8 @@
       if (/L'Uomorsomaiale attacca/.test(text)) return 'uomorsomaiale_base';
       if (/^Subisci /.test(text)) return null;
     }
+    if (/^Doppio Colpo:/.test(text)) return 'doppio_colpo';
+    if (/^Formazione Difensiva:|^Pontifex Maximus:/.test(text)) return 'buff_difesa';
     if (/infliggi|colpiscono per|colpisce per|danni al nemico|danni fisici e|danni al Timore del nemico|critico/.test(text)) return 'hit_dealt';
     if (/Subisci|attacca la tua psiche|ti indebolisce|ti ferisce in profondità|sanguinamento|perdi /.test(text)) return 'hit_taken';
     if (/recuperi|ti infonde|si riprende/.test(text)) return 'heal';
@@ -137,9 +139,9 @@
     var cue = classify(line);
     (function(line, cue, atDelay) {
       setTimeout(function() {
-        if (cue === 'hit_dealt') { swing(player, enemy); if (window.SFX) SFX.play('hit_dealt'); }
+        if (cue === 'hit_dealt' || cue === 'doppio_colpo') { swing(player, enemy); if (window.SFX) SFX.play(cue); }
         else if (cue === 'hit_taken') { swing(enemy, player); if (window.SFX) SFX.play('hit_taken'); }
-        else if (cue === 'heal') { flash(player); if (window.SFX) SFX.play('heal'); }
+        else if (cue === 'heal' || cue === 'buff_difesa') { flash(player); if (window.SFX) SFX.play(cue); }
         else if (cue === 'shield') { if (window.SFX) SFX.play('shield'); }
         else if (cue === 'diaulo_amico' || cue === 'diaulo_butta' || cue === 'diaulo_base') { swing(enemy, player); if (window.SFX) SFX.play(cue); }
         else if (cue === 'diaulo_signore') { flash(player); flash(enemy); if (window.SFX) SFX.play(cue); }
