@@ -57,6 +57,7 @@
 </div>
 
 <div class="combat-log" id="combat-log-live"></div>
+<audio id="duel-start-music" src="/static/music/duel_start.mp3"></audio>
 <noscript>
 <div class="combat-log">
   {% for line in match.log %}<div class="{{ line|logclass }}">{{ line }}</div>{% endfor %}
@@ -253,13 +254,30 @@
   // pagina (specie quando ci si arriva da un ricaricamento automatico, non da un
   // click), viene spesso bloccato in silenzio dalle policy anti-autoplay del
   // browser. Un click reale sblocca sempre l'audio: da qui il pulsante dedicato.
+  // Uso un tag <audio> diretto (come la colonna sonora dei boss speciali nel PvE)
+  // invece del sistema a varianti SFX, piu' affidabile per un file singolo.
+  function playDuelStartMusic() {
+    return new Promise(function(resolve) {
+      var settled = false;
+      function finish() { if (!settled) { settled = true; resolve(); } }
+      var audioEl = document.getElementById('duel-start-music');
+      if (!audioEl || (window.SFX && localStorage.getItem('sfx_muted') === '1')) { setTimeout(finish, 300); return; }
+      audioEl.volume = 0.7;
+      audioEl.currentTime = 0;
+      audioEl.play().catch(function() {});
+      audioEl.addEventListener('ended', finish, { once: true });
+      audioEl.addEventListener('error', finish, { once: true });
+      setTimeout(finish, 6000);
+    });
+  }
+
   var gate = document.getElementById('duel-start-gate');
   var actionArea = document.getElementById('action-area');
   if (isFirstView && gate) {
     document.getElementById('duel-start-btn').addEventListener('click', function() {
       gate.style.display = 'none';
       if (actionArea) actionArea.style.display = '';
-      playCue('duel_start').then(runSequence);
+      playDuelStartMusic().then(runSequence);
     });
   } else {
     runSequence();
