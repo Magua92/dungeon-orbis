@@ -19,7 +19,19 @@
   <pre style="white-space:pre-wrap;font-family:'Crimson Text',serif;font-size:0.85rem">{{ summary_text }}</pre>
 </div>
 
-<div style="text-align:center"><a href="/" class="btn">← Torna all'inizio</a></div>
+<div class="panel-box" style="text-align:center;border-color:var(--gold)">
+  <h3>🏛️ Gilda degli Avventurieri</h3>
+  <p style="font-size:0.85rem;opacity:0.85">Il bottino di questa spedizione va alla cassa comune della Gilda, non alla tua fazione.</p>
+  {% if gloria %}<p style="font-size:0.85rem;color:var(--gold-light)">✨ +{{ gloria }} Gloria per il boss battuto</p>{% endif %}
+  <form method="post" action="/donate_to_guild">
+    <input type="hidden" name="faction" value="{{ run.faction }}">
+    <input type="hidden" name="name" value="{{ run.name }}">
+    <input type="hidden" name="boss_beaten" value="{{ '1' if run.result == 'vittoria' else '0' }}">
+    <input type="hidden" name="gloria" value="{{ gloria }}">
+    {% for k, v in loot.items() %}<input type="hidden" name="loot_{{ k }}" value="{{ v }}">{% endfor %}
+    <button type="submit" class="btn" style="width:100%">Esci e dona alla Gilda →</button>
+  </form>
+</div>
 {% endblock %}
 {% block sound_cues %}
 {% if sound_cues %}

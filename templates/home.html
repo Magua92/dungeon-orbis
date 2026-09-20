@@ -2,6 +2,9 @@
 {% block content %}
 <h1 style="text-align:center">⚜ La Spedizione ⚜</h1>
 <p style="text-align:center;opacity:0.75;font-style:italic">Un dungeon roguelite per i personaggi di Orbis Terrarum.</p>
+<div style="text-align:center;margin-bottom:1rem">
+  <a href="/arena" class="btn" style="border-color:var(--gold)">⚔ Vai all'Arena (PvP) →</a>
+</div>
 <div class="panel-box" style="max-width:420px;margin:0 auto">
   {% if error %}<div class="error">{{ error }}</div>{% endif %}
   {% if factions %}
@@ -34,7 +37,7 @@
     <button type="submit" class="btn" style="width:100%">Entra nella Spedizione →</button>
   </form>
 </div>
-<div class="footer-note">Al primo accesso di un personaggio, usa esattamente lo stesso nome registrato nel Master Panel.</div>
+<div class="footer-note">Al primo accesso di un personaggio, usa esattamente lo stesso nome registrato nel Master Panel.<br><a href="/guild">🏛️ Cassa della Gilda degli Avventurieri</a></div>
 <script>
 var CHAR_BY_FACTION = {{ char_by_faction|tojson }};
 var factionSelect = document.getElementById('faction-select');
