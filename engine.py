@@ -1649,6 +1649,8 @@ def _arena_apply_damage(actor, target, target_status, dmg, timore_dmg, log):
     qui pero' il bersaglio e' un giocatore vero con scudi/buff propri, cosa che il
     nemico scriptato del PvE non ha mai avuto bisogno di gestire."""
     flags = actor.get("equip_flags", {})
+    dmg = dmg * gd.ARENA_DMG_MULTIPLIER
+    timore_dmg = timore_dmg * gd.ARENA_DMG_MULTIPLIER
     effective_dmg = dmg
     bonus_timore = 0
     crit_bonus_timore = 0
@@ -1665,7 +1667,7 @@ def _arena_apply_damage(actor, target, target_status, dmg, timore_dmg, log):
             target_status["stunned"] = target_status.get("stunned", 0) + 1
             log.append("%s stordisce %s per 1 turno!" % (actor["name"], target["name"]))
 
-        bonus_timore += flags.get("dmg_timore_nemico", 0)
+        bonus_timore += flags.get("dmg_timore_nemico", 0) * gd.ARENA_DMG_MULTIPLIER
 
         if flags.get("critico_colpisce_timore") and random.random() < gd.ITEM_CRIT_CHANCE:
             crit_bonus_timore += effective_dmg
@@ -1840,7 +1842,7 @@ def resolve_arena_round(state_a, state_b, action_a, action_b):
             if side_state["cooldowns"][k] > 0:
                 side_state["cooldowns"][k] -= 1
         if side_status.get("burn_turns", 0) > 0:
-            burn_dmg = side_status.get("burn_dmg", 0)
+            burn_dmg = side_status.get("burn_dmg", 0) * gd.ARENA_DMG_MULTIPLIER
             side_state["leader"]["pv"] -= burn_dmg
             log.append("Le fiamme infliggono %d danni a %s." % (burn_dmg, side_state["name"]))
             side_status["burn_turns"] -= 1
@@ -1873,12 +1875,12 @@ def resolve_arena_round(state_a, state_b, action_a, action_b):
         arieti = sum(1 for m in side_state["seguito"] if m["alive"] and m["type"] == "ariete")
         if martelli:
             opp_armor = _arena_effective_defense(opponent_state, opponent_state["arena_status"], "armor")
-            colpo = max(1, martelli * gd.MARTELLO_COUNTER_DMG - opp_armor)
+            colpo = max(1, martelli * gd.MARTELLO_COUNTER_DMG * gd.ARENA_DMG_MULTIPLIER - opp_armor)
             opponent_state["leader"]["pv"] -= colpo
             log.append("I Compagni del Martello di %s colpiscono %s per %d danni." % (side_state["name"], opponent_state["name"], colpo))
         if arieti:
             opp_mres = _arena_effective_defense(opponent_state, opponent_state["arena_status"], "mres")
-            colpo = max(1, arieti * gd.ARIETE_COUNTER_DMG - opp_mres)
+            colpo = max(1, arieti * gd.ARIETE_COUNTER_DMG * gd.ARENA_DMG_MULTIPLIER - opp_mres)
             opponent_state["leader"]["timore"] -= colpo
             log.append("L'Ariete di %s incalza il Timore di %s per %d danni." % (side_state["name"], opponent_state["name"], colpo))
 
