@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+{% include "_status.html" %}
+
+<div class="panel-box" style="text-align:center">
+  <div style="font-size:2.5rem">{{ event.icon }}</div>
+  <h2 style="margin:0.4rem 0">{{ event.name }}</h2>
+  <p style="opacity:0.85;font-style:italic;margin-bottom:1.2rem">{{ event.text }}</p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0.8rem">
+    {% for key, label in event.options %}
+    <form method="post" action="/mystery_choice">
+      <input type="hidden" name="choice_key" value="{{ key }}">
+      <button type="submit" class="btn" style="width:100%">{{ label }}</button>
+    </form>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

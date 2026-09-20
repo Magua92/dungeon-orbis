@@ -21,6 +21,48 @@
 </div>
 {% endif %}
 
+{% if shop_log %}
+<div class="combat-log" style="margin-bottom:1rem">
+  {% for line in shop_log %}<div>{{ line }}</div>{% endfor %}
+</div>
+{% endif %}
+
+<div class="panel-box" style="margin-bottom:1rem">
+  <h3>🔨 Forgia &amp; 💰 Mercenario</h3>
+  <div style="font-size:0.72rem;opacity:0.65;margin-bottom:0.7rem">Sempre disponibili, non fanno saltare il combattimento — usali e poi affronta comunque la stanza qui sotto. Al massimo una volta ciascuno per stanza.</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem">
+    <form method="post" action="/shop_action" style="text-align:center">
+      <input type="hidden" name="action" value="incudine">
+      <div style="font-size:0.78rem;opacity:0.75;margin-bottom:0.5rem">{{ room_types.incudine.desc }}</div>
+      {% if shop_used.incudine %}
+      <div class="btn" style="width:100%;opacity:0.4;cursor:not-allowed">Già usata in questa stanza</div>
+      {% else %}
+      <div style="font-size:0.72rem;opacity:0.65;margin-bottom:0.4rem">Costo: {{ incudine_cost }} Oro (hai {{ run.treasure.oro }})</div>
+      <select name="stat_choice" style="width:100%;margin-bottom:0.6rem">
+        {% for io in incudine_options %}
+        <option value="{{ io.stat }}">
+          {% if io.stat == 'dmg' %}+{{ incudine_amount }} Danno Fisico
+          {% elif io.stat == 'armor' %}+{{ incudine_amount }} Armatura
+          {% else %}+{{ incudine_amount }} Resistenza Mentale{% endif %}
+        </option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn" style="width:100%">Potenzia</button>
+      {% endif %}
+    </form>
+    <form method="post" action="/shop_action" style="text-align:center">
+      <input type="hidden" name="action" value="sacco_monete">
+      <div style="font-size:0.78rem;opacity:0.75;margin-bottom:0.5rem">{{ room_types.sacco_monete.desc }}</div>
+      {% if shop_used.sacco_monete %}
+      <div class="btn" style="width:100%;opacity:0.4;cursor:not-allowed">Già usato in questa stanza</div>
+      {% else %}
+      <div style="font-size:0.72rem;opacity:0.65;margin-bottom:0.6rem">Costo: {{ sacco_monete_cost }} Oro (hai {{ run.treasure.oro }})</div>
+      <button type="submit" class="btn" style="width:100%">Assumi</button>
+      {% endif %}
+    </form>
+  </div>
+</div>
+
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem">
   {% for opt in options %}
   {% set rt = room_types[opt] %}
@@ -29,21 +71,6 @@
     <div style="font-size:2.2rem">{{ rt.icon }}</div>
     <div style="font-family:'Cinzel',serif;color:var(--gold-light);margin:0.3rem 0">{{ rt.name }}</div>
     <div style="font-size:0.78rem;opacity:0.75;margin-bottom:0.7rem">{{ rt.desc }}</div>
-    {% if opt == 'incudine' %}
-    <div style="font-size:0.72rem;opacity:0.65;margin-bottom:0.4rem">Costo: {{ incudine_cost }} Oro (hai {{ run.treasure.oro }})</div>
-    <select name="stat_choice" style="width:100%;margin-bottom:0.6rem">
-      {% for io in incudine_options %}
-      <option value="{{ io.stat }}">
-        {% if io.stat == 'dmg' %}+{{ incudine_amount }} Danno Fisico
-        {% elif io.stat == 'armor' %}+{{ incudine_amount }} Armatura
-        {% else %}+{{ incudine_amount }} Resistenza Mentale{% endif %}
-      </option>
-      {% endfor %}
-    </select>
-    {% endif %}
-    {% if opt == 'sacco_monete' %}
-    <div style="font-size:0.72rem;opacity:0.65;margin-bottom:0.6rem">Costo: {{ sacco_monete_cost }} Oro (hai {{ run.treasure.oro }})</div>
-    {% endif %}
     <button type="submit" class="btn" style="width:100%">Vai</button>
   </form>
   {% endfor %}
