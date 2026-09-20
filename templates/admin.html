@@ -90,4 +90,19 @@
     <button type="submit" class="btn" style="border-color:#8c2a2a;color:#e08a8a">Azzera cassa ora</button>
   </form>
 </div>
+
+<div class="panel-box">
+  <h3>⚔️ Duelli in Arena in corso</h3>
+  {% if not arena_matches %}<div style="opacity:0.7;font-size:0.85rem">Nessun duello in attesa o in corso al momento.</div>{% endif %}
+  {% for m in arena_matches %}
+  <form method="post" style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;padding:0.4rem 0;border-bottom:1px solid #4a3d2833;flex-wrap:wrap"
+        onsubmit="return confirm('Annullare questo duello? Non si può recuperare.');">
+    <span style="flex:1">{{ m.name_a }} ({{ m.faction_a }}) vs {{ m.name_b }} ({{ m.faction_b }}) — {{ 'in attesa che B si prepari' if m.status == 'attesa_b' else 'round ' ~ m.round }}</span>
+    <input type="password" name="password" placeholder="Password" style="width:120px">
+    <input type="hidden" name="action" value="delete_arena_match">
+    <input type="hidden" name="match_id" value="{{ m.id }}">
+    <button type="submit" class="btn" style="padding:0.3rem 0.8rem;font-size:0.75rem;border-color:#8c2a2a;color:#e08a8a">Annulla duello</button>
+  </form>
+  {% endfor %}
+</div>
 {% endblock %}

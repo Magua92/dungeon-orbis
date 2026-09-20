@@ -91,6 +91,15 @@
   {% endif %}
   {% endfor %}
 </div>
+
+<div style="text-align:center;margin-top:1.2rem">
+  <form method="post" action="/arena/match/{{ match.id }}/surrender"
+        onsubmit="return confirm('Sei sicuro di volerti arrendere? Non si può annullare.');">
+    <input type="hidden" name="faction" value="{{ faction }}">
+    <input type="hidden" name="name" value="{{ name }}">
+    <button type="submit" class="btn" style="border-color:#8c2a2a;color:#e08a8a;font-size:0.75rem">Arrenditi nell'ignominia più totale e nel disonore imperituro</button>
+  </form>
+</div>
 {% endblock %}
 {% block sound_cues %}
 <script>
