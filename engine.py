@@ -5,6 +5,12 @@ e ritornano/mutano quello stesso dizionario, piu' una lista di righe di log."""
 import random
 import game_data as gd
 
+# Riga sentinella inserita nel log esattamente tra l'azione del leader e quella del
+# nemico in un round: combat.html la intercetta per inserire una pausa netta fra le
+# due animazioni/suoni invece di mostrarla come testo. Ogni template che stampa il log
+# grezzo (room_result.html, il fallback noscript di combat.html) deve escluderla.
+ROUND_BEAT_MARKER = "__BEAT__"
+
 
 # ─── LIVELLI ──────────────────────────────────────────────────────────────
 def level_from_xp(xp):
@@ -1192,6 +1198,7 @@ def resolve_combat_round(run, action_key):
         if combat["enemy_pv"] <= 0 or combat["enemy_timore"] <= 0:
             run["log"] = log
             return "vittoria"
+        log.append(ROUND_BEAT_MARKER)
         enemy_turn()
         if combat["enemy_pv"] <= 0 or combat["enemy_timore"] <= 0:
             run["log"] = log
@@ -1205,6 +1212,7 @@ def resolve_combat_round(run, action_key):
         outcome = _check_defeat(run, log)
         if outcome:
             return outcome
+        log.append(ROUND_BEAT_MARKER)
         apply_leader_damage_to_enemy()
         if combat["enemy_pv"] <= 0 or combat["enemy_timore"] <= 0:
             run["log"] = log
