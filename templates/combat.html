@@ -130,44 +130,73 @@
     setTimeout(function() { sword.style.opacity = '0'; flash(target); }, 320);
   }
 
-  var delay = 500;
   var actionButtons = document.querySelectorAll('#action-buttons button[type=submit]');
   if (lines.length > 0) {
     actionButtons.forEach(function(b) { b.disabled = true; b.style.opacity = '0.5'; b.style.cursor = 'wait'; });
   }
-  lines.forEach(function(line) {
-    if (line === '__BEAT__') {
-      // stacco netto fra l'azione del leader e quella del nemico: nessun testo,
-      // nessun suono, solo una pausa prima di riprendere la sequenza.
-      delay += 1000;
-      return;
+
+  function wait(ms) {
+    return new Promise(function(resolve) { setTimeout(resolve, ms); });
+  }
+
+  // Esegue l'animazione/suono di una singola riga e ritorna una Promise che si risolve
+  // solo quando l'effetto e' davvero concluso: se e' un file audio reale aspetta il suo
+  // evento 'ended' (con una rete di sicurezza a 5s in caso di file mancante o bloccato),
+  // altrimenti (suono sintetizzato, silenziato, o nessuna riga con suono) usa una breve
+  // attesa fissa. Cosi' due mosse non si accavallano mai, qualunque sia la durata reale
+  // del file mp3 caricato.
+  function playCue(cue) {
+    return new Promise(function(resolve) {
+      var settled = false;
+      function finish() { if (!settled) { settled = true; resolve(); } }
+
+      if (cue === 'hit_dealt' || cue === 'doppio_colpo') { swing(player, enemy); }
+      else if (cue === 'hit_taken') { swing(enemy, player); }
+      else if (cue === 'heal' || cue === 'buff_difesa') { flash(player); }
+      else if (cue === 'diaulo_amico' || cue === 'diaulo_butta' || cue === 'diaulo_base') { swing(enemy, player); }
+      else if (cue === 'diaulo_signore') { flash(player); flash(enemy); }
+      else if (cue === 'uomorsomaiale_base' || cue === 'uomorsomaiale_sventrare') { swing(enemy, player); }
+      else if (cue === 'uomorsomaiale_ruggito') { flash(player); }
+
+      if (!cue) { setTimeout(finish, 350); return; }
+      var audioEl = window.SFX ? SFX.play(cue) : null;
+      if (audioEl) {
+        audioEl.addEventListener('ended', finish, { once: true });
+        audioEl.addEventListener('error', finish, { once: true });
+        setTimeout(finish, 5000);
+      } else {
+        // suono sintetizzato via Web Audio (nessun elemento da ascoltare) o audio disattivato
+        setTimeout(finish, 400);
+      }
+    });
+  }
+
+  async function playSequence() {
+    await wait(400);
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      if (line === '__BEAT__') {
+        // stacco fra l'azione del leader e quella del nemico: nessun testo, nessun
+        // suono, solo un'ulteriore pausa breve (i suoni veri e propri si sono gia'
+        // aspettati da soli grazie a playCue).
+        await wait(500);
+        continue;
+      }
+      var cue = classify(line);
+      var div = document.createElement('div');
+      div.textContent = line;
+      logEl.appendChild(div);
+      logEl.scrollTop = logEl.scrollHeight;
+      await playCue(cue);
     }
-    var cue = classify(line);
-    (function(line, cue, atDelay) {
-      setTimeout(function() {
-        if (cue === 'hit_dealt' || cue === 'doppio_colpo') { swing(player, enemy); if (window.SFX) SFX.play(cue); }
-        else if (cue === 'hit_taken') { swing(enemy, player); if (window.SFX) SFX.play('hit_taken'); }
-        else if (cue === 'heal' || cue === 'buff_difesa') { flash(player); if (window.SFX) SFX.play(cue); }
-        else if (cue === 'shield') { if (window.SFX) SFX.play('shield'); }
-        else if (cue === 'diaulo_amico' || cue === 'diaulo_butta' || cue === 'diaulo_base') { swing(enemy, player); if (window.SFX) SFX.play(cue); }
-        else if (cue === 'diaulo_signore') { flash(player); flash(enemy); if (window.SFX) SFX.play(cue); }
-        else if (cue === 'uomorsomaiale_base' || cue === 'uomorsomaiale_sventrare') { swing(enemy, player); if (window.SFX) SFX.play(cue); }
-        else if (cue === 'uomorsomaiale_ruggito') { flash(player); if (window.SFX) SFX.play(cue); }
-        var div = document.createElement('div');
-        div.textContent = line;
-        logEl.appendChild(div);
-        logEl.scrollTop = logEl.scrollHeight;
-      }, atDelay);
-    })(line, cue, delay);
-    delay += cue ? 900 : 400;  // le righe "silenziose" (senza suono/animazione) avanzano piu' in fretta
-  });
-  setTimeout(function() {
     if (defeatPending) {
+      await wait(1500);
       window.location.href = '/run_end';
     } else {
       actionButtons.forEach(function(b) { b.disabled = false; b.style.opacity = ''; b.style.cursor = ''; });
     }
-  }, defeatPending ? delay + 2500 : delay);
+  }
+  playSequence();
 
   // Colonna sonora dedicata, valida per qualunque boss speciale (basta un file in
   // static/music/<id_boss>.mp3). Ogni azione ricarica la pagina, quindi salviamo il

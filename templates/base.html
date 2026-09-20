@@ -102,6 +102,9 @@ window.SFX = (function() {
     victory: function() { [523, 659, 784, 1047].forEach(function(f, i) { tone(f, 0.28, 'triangle', 0.15, null, i * 110); }); },
     defeat: function() { [420, 320, 240, 160].forEach(function(f, i) { tone(f, 0.32, 'sawtooth', 0.14, null, i * 150); }); },
   };
+  // Volume di default 0.6 per tutti i file reali; qui si possono alzare/abbassare
+  // singole categorie senza toccare le altre.
+  var VOLUME_OVERRIDES = { doppio_colpo: 0.80 };
   function playFile(name, n) {
     var key = name + '_' + n;
     var audio = audioCache[key];
@@ -112,17 +115,18 @@ window.SFX = (function() {
       audio.pause();
       audio.currentTime = 0;
     }
-    audio.volume = 0.6;
+    audio.volume = (VOLUME_OVERRIDES[name] !== undefined) ? VOLUME_OVERRIDES[name] : 0.6;
     audio.play().catch(function() {});
+    return audio;
   }
   function play(name) {
-    if (isMuted()) return;
+    if (isMuted()) return null;
     var count = VARIANT_COUNTS[name] || 0;
     if (count > 0) {
-      playFile(name, 1 + Math.floor(Math.random() * count));
-      return;
+      return playFile(name, 1 + Math.floor(Math.random() * count));
     }
     if (sounds[name]) sounds[name]();
+    return null;
   }
   function updateButton() {
     var btn = document.getElementById('sfx-toggle');
