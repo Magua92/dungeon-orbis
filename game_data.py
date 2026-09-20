@@ -496,6 +496,10 @@ RADDOPPIO_SOTTO_QUARTO_SOGLIA = 0.25  # Egida dell'Ultimo Bastione: soglia di Vi
 # tiro casuale. Variante per l'arena: riduce direttamente il danno al Timore subito.
 BARDO_ARENA_TIMORE_REDUCTION = 1
 
+# Gilda degli Avventurieri: valore in "gloria" (una risorsa a parte, per la classifica
+# della cassa comune) di un boss battuto — none/il_diaulo/uomorsomaiale come chiave.
+GUILD_GLORIA_VALUES = {None: 10, "il_diaulo": 50, "uomorsomaiale": 100}
+
 
 def format_item_effects(effects):
     """Rende leggibile in italiano ogni effetto meccanico di un oggetto — di base,

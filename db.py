@@ -52,6 +52,12 @@ def init_db():
             key TEXT PRIMARY KEY,
             value TEXT
         );
+        CREATE TABLE IF NOT EXISTS guild_treasury (
+            faction TEXT PRIMARY KEY,
+            resources TEXT NOT NULL,   -- JSON: {"oro": 12, "legname": 4, ...}
+            boss_kills INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS arena_matches (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             faction_a TEXT NOT NULL,
@@ -291,3 +297,36 @@ def update_arena_match(match_id, timestamp, **fields):
     conn.execute("UPDATE arena_matches SET %s WHERE id=?" % columns, (*fields.values(), match_id))
     conn.commit()
     conn.close()
+
+
+# ─── GILDA DEGLI AVVENTURIERI (cassa comune, alimentata da donazioni volontarie) ──
+# Nessuna iscrizione tracciata qui: chi fa parte della Gilda lo dichiara su Discord,
+# tra i giocatori. Il gioco si limita a contare le donazioni quando arrivano.
+def add_guild_contribution(faction, loot, boss_beaten, timestamp):
+    conn = get_conn()
+    row = conn.execute("SELECT resources, boss_kills FROM guild_treasury WHERE faction=?", (faction,)).fetchone()
+    resources = json.loads(row["resources"]) if row else {}
+    boss_kills = row["boss_kills"] if row else 0
+    for k, v in loot.items():
+        resources[k] = resources.get(k, 0) + v
+    if boss_beaten:
+        boss_kills += 1
+    conn.execute(
+        "INSERT INTO guild_treasury (faction, resources, boss_kills, updated_at) VALUES (?,?,?,?) "
+        "ON CONFLICT(faction) DO UPDATE SET resources=excluded.resources, boss_kills=excluded.boss_kills, updated_at=excluded.updated_at",
+        (faction, json.dumps(resources, ensure_ascii=False), boss_kills, timestamp)
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_guild_leaderboard():
+    conn = get_conn()
+    rows = conn.execute("SELECT * FROM guild_treasury").fetchall()
+    conn.close()
+    result = []
+    for r in rows:
+        d = dict(r)
+        d["resources"] = json.loads(d["resources"])
+        result.append(d)
+    return result

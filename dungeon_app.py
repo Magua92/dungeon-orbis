@@ -67,6 +67,8 @@ DISCORD_WEBHOOK_URL = os.environ.get("DUNGEON_DISCORD_WEBHOOK", "")
 # Webhook separato per il canale Arena, cosi' le sfide PvP non si mischiano ai
 # riepiloghi delle spedizioni normali.
 ARENA_DISCORD_WEBHOOK_URL = os.environ.get("DUNGEON_ARENA_DISCORD_WEBHOOK", "")
+# Webhook per il canale della Gilda degli Avventurieri (donazioni di fine spedizione).
+GUILD_DISCORD_WEBHOOK_URL = os.environ.get("DUNGEON_GUILD_DISCORD_WEBHOOK", "")
 
 # Password semplice per la pagina di amministrazione (sblocco turno). Cambiala.
 ADMIN_PASSWORD = os.environ.get("DUNGEON_ADMIN_PASSWORD", "cambiami")
@@ -88,6 +90,15 @@ def send_arena_discord(text):
         return
     try:
         requests.post(ARENA_DISCORD_WEBHOOK_URL, json={"content": text}, timeout=8)
+    except Exception:
+        pass
+
+
+def send_guild_discord(text):
+    if not GUILD_DISCORD_WEBHOOK_URL or not requests:
+        return
+    try:
+        requests.post(GUILD_DISCORD_WEBHOOK_URL, json={"content": text}, timeout=8)
     except Exception:
         pass
 
@@ -120,7 +131,7 @@ def build_expedition_report(run, xp_gained, loot, drop_names):
         {"name": "Esperienza", "value": "%d PE" % xp_gained, "inline": True},
     ]
     if loot:
-        fields.append({"name": "Bottino", "value": ", ".join("%d %s" % (v, k) for k, v in loot.items()), "inline": False})
+        fields.append({"name": "Bottino (donato alla Gilda)", "value": ", ".join("%d %s" % (v, k) for k, v in loot.items()), "inline": False})
     if drop_names:
         fields.append({"name": "Oggetti trovati", "value": ", ".join(drop_names), "inline": False})
 
@@ -558,6 +569,10 @@ def run_end():
     else:
         loot = {}
 
+    gloria = 0
+    if run["result"] == "vittoria":
+        gloria = gd.GUILD_GLORIA_VALUES.get(run.get("special_boss_fought"), gd.GUILD_GLORIA_VALUES[None])
+
     db.add_xp(faction, name, xp_gained)
     timestamp = datetime.datetime.utcnow().isoformat()
     drop_names = []
@@ -580,8 +595,53 @@ def run_end():
 
     session.pop("run", None)
     return render_template("run_end.html", run=run, loot=loot, drop_names=drop_names, xp_gained=xp_gained,
-                            result_labels=result_labels, summary_text=summary,
+                            result_labels=result_labels, summary_text=summary, gloria=gloria,
                             sound_cues=sound_cues_from_log(run.get("log", []), outcome=run["result"]))
+
+
+@app.route("/donate_to_guild", methods=["POST"])
+def donate_to_guild():
+    """Unico modo per uscire dalla schermata di fine spedizione: il bottino di
+    questa run (se presente) va alla cassa comune della Gilda, non alla fazione.
+    Nessuna iscrizione da verificare qui: la Gilda vive su Discord, il gioco si
+    limita a contare quello che arriva."""
+    faction = request.form.get("faction")
+    name = request.form.get("name")
+    boss_beaten = request.form.get("boss_beaten") == "1"
+    loot = {}
+    for r in gd.RESOURCE_TYPES:
+        try:
+            v = int(request.form.get("loot_%s" % r, "0"))
+        except ValueError:
+            v = 0
+        if v > 0:
+            loot[r] = v
+    try:
+        gloria = int(request.form.get("gloria", "0"))
+    except ValueError:
+        gloria = 0
+    if gloria > 0:
+        loot["gloria"] = gloria
+    timestamp = datetime.datetime.utcnow().isoformat()
+    db.add_guild_contribution(faction, loot, boss_beaten, timestamp)
+    parts = ", ".join("%d %s" % (v, k) for k, v in loot.items())
+    msg = "🏛️ **%s** (%s) dona alla Gilda: %s%s" % (
+        name, faction, parts or "nessuna risorsa questa volta",
+        " — 👑 boss battuto!" if boss_beaten else ""
+    )
+    send_guild_discord(msg)
+    return redirect(url_for("home"))
+
+
+@app.route("/guild")
+def guild_leaderboard():
+    leaderboard = db.get_guild_leaderboard()
+    leaderboard.sort(key=lambda d: sum(d["resources"].values()), reverse=True)
+    for f in leaderboard:
+        f["gloria"] = f["resources"].get("gloria", 0)
+        f["other_resources"] = {k: v for k, v in f["resources"].items() if k != "gloria"}
+        f["total"] = sum(f["resources"].values())
+    return render_template("guild.html", leaderboard=leaderboard)
 
 
 @app.route("/admin", methods=["GET", "POST"])
