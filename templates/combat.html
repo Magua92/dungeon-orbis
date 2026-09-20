@@ -29,7 +29,7 @@
 <div class="combat-log" id="combat-log-live"></div>
 <noscript>
 <div class="combat-log">
-  {% for line in run.log %}<div>{{ line }}</div>{% endfor %}
+  {% for line in run.log %}{% if line != '__BEAT__' %}<div>{{ line }}</div>{% endif %}{% endfor %}
 </div>
 </noscript>
 {% if run.combat.special_boss %}
@@ -136,6 +136,12 @@
     actionButtons.forEach(function(b) { b.disabled = true; b.style.opacity = '0.5'; b.style.cursor = 'wait'; });
   }
   lines.forEach(function(line) {
+    if (line === '__BEAT__') {
+      // stacco netto fra l'azione del leader e quella del nemico: nessun testo,
+      // nessun suono, solo una pausa prima di riprendere la sequenza.
+      delay += 1000;
+      return;
+    }
     var cue = classify(line);
     (function(line, cue, atDelay) {
       setTimeout(function() {
