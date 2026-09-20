@@ -242,10 +242,28 @@ def _seguito_absorb(run, incoming_dmg):
 
 
 # ─── COMBATTIMENTO ────────────────────────────────────────────────────────
+def _interp_value(table_by_level, level):
+    """Come _interp_dmg ma per un singolo valore (es. PV o Timore fissi di un boss
+    speciale), interpolato linearmente tra i livelli-ancora piu' vicini."""
+    keys = sorted(table_by_level.keys())
+    if level <= keys[0]:
+        return table_by_level[keys[0]]
+    if level >= keys[-1]:
+        return table_by_level[keys[-1]]
+    lo = max(k for k in keys if k <= level)
+    hi = min(k for k in keys if k >= level)
+    if lo == hi:
+        return table_by_level[lo]
+    t = (level - lo) / (hi - lo)
+    return round(table_by_level[lo] + (table_by_level[hi] - table_by_level[lo]) * t)
+
+
 def start_combat(run, tier):
     """tier: 1..N per stanze normali, 'boss' per il miniboss."""
     level = run["level"]
     special_boss = None
+    enemy_pv_value = None
+    enemy_timore_value = None
     if tier == "boss":
         data = gd.get_boss_tier(gd.ROOMS_PER_RUN, level)
         if random.random() < gd.IL_DIAULO["spawn_chance"]:
@@ -253,6 +271,14 @@ def start_combat(run, tier):
             name, icon = gd.IL_DIAULO["name"], gd.IL_DIAULO["icon"]
             archetype = "il_diaulo"
             enemy_armor, enemy_mres = gd.IL_DIAULO["armor"], gd.IL_DIAULO["mres"]
+        elif random.random() < gd.UOMORSOMAIALE["spawn_chance"]:
+            special_boss = "uomorsomaiale"
+            spec = gd.UOMORSOMAIALE
+            name, icon = spec["name"], spec["icon"]
+            archetype = "uomorsomaiale"
+            enemy_armor, enemy_mres = spec["armor"], spec["mres"]
+            enemy_pv_value = _interp_value(spec["pv_table"], level)
+            enemy_timore_value = _interp_value(spec["timore_table"], level)
         else:
             name, icon, archetype = random.choice(data["pool"])
             enemy_armor, enemy_mres = gd.enemy_defense(archetype, level)
@@ -260,6 +286,10 @@ def start_combat(run, tier):
         data = gd.get_enemy_tier(tier, level)
         name, icon, archetype = random.choice(data["pool"])
         enemy_armor, enemy_mres = gd.enemy_defense(archetype, level)
+    if enemy_pv_value is None:
+        enemy_pv_value = data["pv"]
+    if enemy_timore_value is None:
+        enemy_timore_value = data["pv"]  # comportamento generico: PV e Timore coincidono
     if tier == "boss":
         # sopravvive anche dopo che run["combat"] viene svuotato (vittoria) o quando si
         # arriva a run_end: serve per personalizzare il resoconto sul boss incontrato.
@@ -268,8 +298,8 @@ def start_combat(run, tier):
     run["combat"] = {
         "tier": tier, "name": name, "icon": icon, "archetype": archetype, "special_boss": special_boss,
         "enemy_armor": enemy_armor, "enemy_mres": enemy_mres,
-        "enemy_pv": data["pv"], "enemy_pv_max": data["pv"],
-        "enemy_timore": data["pv"], "enemy_timore_max": data["pv"],
+        "enemy_pv": enemy_pv_value, "enemy_pv_max": enemy_pv_value,
+        "enemy_timore": enemy_timore_value, "enemy_timore_max": enemy_timore_value,
         "dmg": data["dmg"], "fear_chance": data["fear_chance"], "fear_dmg": data["fear_dmg"],
         "round": 1, "first_hit_taken": False, "negotiated_escape": False, "enemy_stunned": 0,
         "combat_armor_bonus": 0, "combat_mres_bonus": 0, "combat_dmg_bonus": 0,
@@ -282,6 +312,8 @@ def start_combat(run, tier):
         "player_debuff_stat": None, "player_debuff_turns": 0,
         "player_bleed_turns": 0, "player_bleed_dmg": 0, "player_bleed_target": None,
         "diaulo_signore_cd": 0,
+        "uomorsomaiale_sventrare_cd": 0, "uomorsomaiale_ruggito_cd": 0,
+        "player_dmg_debuff": 0, "player_dmg_debuff_turns": 0,
     }
     run["log"] = []
     if special_boss == "il_diaulo":
@@ -319,11 +351,11 @@ def _effective_defense(run, combat, stat):
     return max(0, base)
 
 
-def _il_diaulo_deal_damage(run, combat, log, phys, timore_amt):
-    """Infligge danno di IL DIAULO al leader con la stessa mitigazione (scudo di
+def _special_boss_deal_damage(run, combat, log, phys, timore_amt):
+    """Infligge danno di un boss speciale al leader con la stessa mitigazione (scudo di
     Formazione Difensiva, Scudo Magico, Armatura/Res. Mentale) usata per un attacco
-    nemico normale — cosi' le sue mosse "grezze" (non il veleno, che bypassa tutto
-    di proposito) restano coerenti col resto del gioco."""
+    nemico normale — cosi' le loro mosse "grezze" (non il veleno/sanguinamento, che
+    bypassano tutto di proposito) restano coerenti col resto del gioco."""
     if phys > 0:
         residuo = phys
         shield = combat.get("shield_reduction", 0)
@@ -379,7 +411,7 @@ def _il_diaulo_turn(run, combat, log):
     if roll < spec["amico_rettiliani_chance"]:
         dmg = random.randint(*spec["amico_rettiliani_dmg"])
         timore_dmg = random.randint(*spec["amico_rettiliani_dmg_timore"])
-        _il_diaulo_deal_damage(run, combat, log, dmg, timore_dmg)
+        _special_boss_deal_damage(run, combat, log, dmg, timore_dmg)
         combat["player_bleed_turns"] = spec["veleno_turni"]
         combat["player_bleed_dmg"] = spec["veleno_dmg"]
         combat["player_bleed_target"] = "pv"
@@ -389,7 +421,7 @@ def _il_diaulo_turn(run, combat, log):
         dmg = random.randint(*spec["buttacettete_dmg"])
         contraccolpo = random.randint(*spec["buttacettete_contraccolpo"])
         log.append("Buttacettete: IL DIAULO carica e si schianta su di te.")
-        _il_diaulo_deal_damage(run, combat, log, dmg, 0)
+        _special_boss_deal_damage(run, combat, log, dmg, 0)
         combat["enemy_pv"] -= contraccolpo
         log.append("Lo schianto gli costa %d danni di contraccolpo." % contraccolpo)
         return
@@ -407,6 +439,41 @@ def _il_diaulo_turn(run, combat, log):
         if finale > 0:
             run["leader"]["timore"] -= finale
             log.append("IL DIAULO sussurra il tuo nome: perdi %d Timore (penetra %d Res. Mentale)." % (finale, spec["penetrazione_mres"]))
+
+
+def _uomorsomaiale_turn(run, combat, log):
+    """Moveset dedicato dell'Uomorsomaiale: sceglie a caso fra le mosse non in
+    cooldown (nessuna percentuale fissa, a differenza di IL DIAULO)."""
+    spec = gd.UOMORSOMAIALE
+    disponibili = ["base"]
+    if combat.get("uomorsomaiale_sventrare_cd", 0) <= 0:
+        disponibili.append("sventrare")
+    if combat.get("uomorsomaiale_ruggito_cd", 0) <= 0:
+        disponibili.append("ruggito")
+    mossa = random.choice(disponibili)
+
+    if mossa == "sventrare":
+        combat["uomorsomaiale_sventrare_cd"] = spec["sventrare_cd"]
+        dmg = random.randint(*spec["sventrare_dmg"])
+        log.append("Sventrare: l'Uomorsomaiale affonda le zanne.")
+        _special_boss_deal_damage(run, combat, log, dmg, 0)
+        combat["player_bleed_turns"] = spec["sventrare_bleed_turni"]
+        combat["player_bleed_dmg"] = spec["sventrare_bleed_dmg"]
+        combat["player_bleed_target"] = "pv"
+        log.append("Sventrare: la ferita sanguina per %d PV a turno per %d turni." % (spec["sventrare_bleed_dmg"], spec["sventrare_bleed_turni"]))
+        return
+
+    if mossa == "ruggito":
+        combat["uomorsomaiale_ruggito_cd"] = spec["ruggito_cd"]
+        combat["player_dmg_debuff"] = spec["ruggito_riduzione"]
+        combat["player_dmg_debuff_turns"] = spec["ruggito_turni"]
+        log.append("Ruggito: l'Uomorsomaiale ruggisce, intimorendoti — i tuoi colpi infliggeranno %d danni in meno per %d turni." % (spec["ruggito_riduzione"], spec["ruggito_turni"]))
+        return
+
+    for i in range(spec["colpi_base"]):
+        dmg = random.randint(*spec["dmg_base"])
+        log.append("L'Uomorsomaiale attacca (colpo %d di %d)." % (i + 1, spec["colpi_base"]))
+        _special_boss_deal_damage(run, combat, log, dmg, 0)
 
 
 def _set_cooldown(run, ability_key):
@@ -787,6 +854,15 @@ def resolve_combat_round(run, action_key):
         else:
             log.append(msg)
 
+    if not escape and combat.get("player_dmg_debuff_turns", 0) > 0 and dmg > 0:
+        riduzione = combat.get("player_dmg_debuff", 0)
+        dmg = max(0, dmg - riduzione)
+        msg = "Ruggito: l'intimidazione ti indebolisce il colpo, -%d danni." % riduzione
+        if ab_log is not None:
+            ab_log.append(msg)
+        else:
+            log.append(msg)
+
     # iniziativa: chi agisce per primo nel round (l'arciere favorisce il leader; un nemico
     # rallentato agisce sempre per ultimo, a prescindere da tutto il resto)
     has_arciere = any(m["alive"] and m["type"] == "arciere" for m in run["seguito"])
@@ -829,6 +905,15 @@ def resolve_combat_round(run, action_key):
 
     if combat.get("diaulo_signore_cd", 0) > 0:
         combat["diaulo_signore_cd"] -= 1
+
+    if combat.get("uomorsomaiale_sventrare_cd", 0) > 0:
+        combat["uomorsomaiale_sventrare_cd"] -= 1
+    if combat.get("uomorsomaiale_ruggito_cd", 0) > 0:
+        combat["uomorsomaiale_ruggito_cd"] -= 1
+    if combat.get("player_dmg_debuff_turns", 0) > 0:
+        combat["player_dmg_debuff_turns"] -= 1
+        if combat["player_dmg_debuff_turns"] <= 0:
+            combat["player_dmg_debuff"] = 0
 
     if combat.get("enemy_buff_turns", 0) > 0:
         combat["enemy_buff_turns"] -= 1
@@ -893,6 +978,10 @@ def resolve_combat_round(run, action_key):
 
         if combat.get("special_boss") == "il_diaulo":
             _il_diaulo_turn(run, combat, log)
+            return
+
+        if combat.get("special_boss") == "uomorsomaiale":
+            _uomorsomaiale_turn(run, combat, log)
             return
 
         # purificatore/sciamano: cura passiva a inizio del turno di scambio

@@ -224,6 +224,26 @@ IL_DIAULO = {
     "sfx_prefix": "il_diaulo_",  # static/sfx/il_diaulo_hit_dealt_1.mp3, ecc.
 }
 
+UOMORSOMAIALE = {
+    "name": "Uomorsomaiale",
+    "icon": "🐗",
+    "spawn_chance": 0.20,  # solo se non e' gia' comparso IL DIAULO (controllato in engine.py)
+    "armor": 0,
+    "mres": 0,
+    "pv_table": {1: 70, 5: 85, 10: 100},
+    "timore_table": {1: 26, 5: 30, 10: 36},
+    "dmg_base": (6, 10),
+    "colpi_base": 2,             # l'attacco base colpisce 2 volte a turno
+    "sventrare_dmg": (8, 14),
+    "sventrare_cd": 5,
+    "sventrare_bleed_dmg": 4,
+    "sventrare_bleed_turni": 3,
+    "ruggito_riduzione": 2,       # riduce il DANNO INFLITTO dal giocatore (non le sue difese)
+    "ruggito_turni": 2,
+    "ruggito_cd": 4,
+    "sfx_prefix": "uomorsomaiale_",
+}
+
 
 def enemy_defense(archetype, level):
     """Armatura/Resistenza Mentale del nemico in base al suo archetipo e al livello del
@@ -572,6 +592,32 @@ SPECIAL_BOSS_NARRATIVE = {
              "Torna a {faction} turbato nello spirito, ma con ogni cosa raccolta ancora al sicuro."),
             ("{name} ha sentito il sussurro di IL DIAULO, e si è ritirato in tempo",
              "Meglio vivi e turbati che tra le sue grinfie: torna a {faction} con il bottino intatto."),
+        ],
+    },
+    "uomorsomaiale": {
+        "vittoria": [
+            ("{name} ha abbattuto l'Uomorsomaiale",
+             "Una furia di zanne e muscoli, e {name} l'ha fermata a forza di colpi. {faction} ne parlerà come di una vera prova di sangue."),
+            ("L'Uomorsomaiale è caduto sotto i colpi di {name}",
+             "Non c'è stata strategia, solo resistenza: chi si fermava prima perdeva. {name} non si è fermato."),
+            ("{name} ha domato la bestia",
+             "Zanne, ruggiti, sventrate — niente ha piegato {name}. {faction} accoglie un macellaio di mostri."),
+        ],
+        "sconfitta_morte": [
+            ("L'Uomorsomaiale ha travolto {name}",
+             "Il Seguito lo ha portato fuori privo di sensi, sventrato e svuotato di tutto ciò che aveva raccolto. La bestia non fa prigionieri."),
+            ("{name} è stato ridotto in polvere dall'Uomorsomaiale",
+             "Nessun bottino, nessuna gloria — solo zanne e furia. Torna a {faction} vivo per un pelo."),
+            ("La furia dell'Uomorsomaiale ha avuto la meglio su {name}",
+             "Portato fuori dalle profondità senza nulla in mano, {faction} lo rivedrà pieno di cicatrici nuove."),
+        ],
+        "sconfitta_timore": [
+            ("{name} si è ritirato davanti all'Uomorsomaiale, il bottino ancora in mano",
+             "Anche il coraggio ha un limite di fronte a tanta furia cieca. {name} lo ha riconosciuto in tempo."),
+            ("L'Uomorsomaiale ha spezzato il coraggio di {name}, non le sue tasche",
+             "Torna a {faction} scosso, ma con ogni cosa raccolta ancora al sicuro."),
+            ("{name} ha sentito il ruggito, e si è ritirato in tempo",
+             "Meglio vivi e turbati che sotto quelle zanne: torna a {faction} con il bottino intatto."),
         ],
     },
 }
