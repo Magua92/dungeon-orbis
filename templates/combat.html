@@ -29,7 +29,7 @@
 <div class="combat-log" id="combat-log-live"></div>
 <noscript>
 <div class="combat-log">
-  {% for line in run.log %}{% if line != '__BEAT__' %}<div>{{ line }}</div>{% endif %}{% endfor %}
+  {% for line in run.log %}{% if line != '__BEAT__' %}<div class="{{ line|logclass }}">{{ line }}</div>{% endif %}{% endfor %}
 </div>
 </noscript>
 {% if run.combat.special_boss %}
@@ -90,11 +90,20 @@
       if (/^Subisci |Il tuo Timore scende di |Lo schianto gli costa/.test(text)) return null;
     }
     if (specialBoss === 'uomorsomaiale') {
+      // l'annuncio del sanguinamento condivide il prefisso "Sventrare:" con la mossa
+      // stessa: va intercettato prima, altrimenti farebbe scattare due volte lo stesso
+      // suono d'attacco.
+      if (/la ferita sanguina/.test(text)) return null;
       if (/^Sventrare:/.test(text)) return 'uomorsomaiale_sventrare';
       if (/^Ruggito:/.test(text)) return 'uomorsomaiale_ruggito';
       if (/L'Uomorsomaiale attacca/.test(text)) return 'uomorsomaiale_base';
       if (/^Subisci /.test(text)) return null;
     }
+    // Sanguinamento e avvelenamento (annuncio e tick a ogni turno) non hanno un suono
+    // proprio: restano leggibili e colorati nel log, ma senza audio/animazione — la
+    // mossa che li causa (es. il morso di Sventrare, l'iniezione de IL DIAULO) mantiene
+    // comunque il proprio suono dedicato, verificato sopra.
+    if (/^Il sanguinamento |^Il veleno |ti ferisce in profondità: sanguini/.test(text)) return null;
     if (/^Doppio Colpo:/.test(text)) return 'doppio_colpo';
     if (/^Formazione Difensiva:|^Pontifex Maximus:/.test(text)) return 'buff_difesa';
     if (/infliggi|colpiscono per|colpisce per|danni al nemico|danni fisici e|danni al Timore del nemico|critico/.test(text)) return 'hit_dealt';
@@ -102,6 +111,15 @@
     if (/recuperi|ti infonde|si riprende/.test(text)) return 'heal';
     if (/scudo|Scudo|assorbe|attutisce/.test(text)) return 'shield';
     return null;
+  }
+
+  // Colorazione informativa della riga nel log — indipendente dal suono: una riga puo'
+  // non avere alcun effetto sonoro (vedi classify sopra) ma essere comunque colorata.
+  function logColorClass(text) {
+    if (/^Il sanguinamento |ti ferisce in profondità: sanguini|la ferita sanguina/.test(text)) return 'log-bleed';
+    if (/^Il veleno |inietta un veleno/.test(text)) return 'log-poison';
+    if (/recuperi|ti infonde|si riprende/.test(text)) return 'log-heal';
+    return '';
   }
 
   function flash(el) {
@@ -185,6 +203,8 @@
       var cue = classify(line);
       var div = document.createElement('div');
       div.textContent = line;
+      var colorClass = logColorClass(line);
+      if (colorClass) div.className = colorClass;
       logEl.appendChild(div);
       logEl.scrollTop = logEl.scrollHeight;
       await playCue(cue);

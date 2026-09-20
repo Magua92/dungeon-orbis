@@ -2,7 +2,7 @@
 {% block content %}
 {% include "_status.html" %}
 <div class="combat-log">
-  {% for line in log %}{% if line != '__BEAT__' %}<div>{{ line }}</div>{% endif %}{% endfor %}
+  {% for line in log %}{% if line != '__BEAT__' %}<div class="{{ line|logclass }}">{{ line }}</div>{% endif %}{% endfor %}
 </div>
 <div style="text-align:center"><a href="/room" class="btn">Prosegui →</a></div>
 {% endblock %}
