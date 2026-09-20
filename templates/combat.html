@@ -32,6 +32,9 @@
   {% for line in run.log %}<div>{{ line }}</div>{% endfor %}
 </div>
 </noscript>
+{% if run.combat.special_boss == 'il_diaulo' %}
+<audio id="diaulo-music" src="/static/music/il_diaulo.mp3" loop></audio>
+{% endif %}
 
 <div style="font-family:'Cinzel',serif;font-size:0.85rem;color:var(--gold-light);margin-bottom:0.5rem">Scegli la tua azione:</div>
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.6rem" id="action-buttons">
@@ -158,7 +161,4 @@
   }
 })();
 </script>
-{% if run.combat.special_boss == 'il_diaulo' %}
-<audio id="diaulo-music" src="/static/music/il_diaulo.mp3" loop></audio>
-{% endif %}
 {% endblock %}
