@@ -623,25 +623,38 @@ def donate_to_guild():
     if gloria > 0:
         loot["gloria"] = gloria
     timestamp = datetime.datetime.utcnow().isoformat()
-    db.add_guild_contribution(faction, loot, boss_beaten, timestamp)
+    db.add_guild_contribution(faction, name, loot, boss_beaten, timestamp)
+
     parts = ", ".join("%d %s" % (v, k) for k, v in loot.items())
-    msg = "🏛️ **%s** (%s) dona alla Gilda: %s%s" % (
+    leaderboard = db.get_guild_leaderboard()
+    grand_total = sum(f["total"] for f in leaderboard)
+    try:
+        goal = int(db.get_setting("guild_goal", "300"))
+    except (TypeError, ValueError):
+        goal = 300
+
+    lines = ["🏛️ **%s** (%s) dona alla Gilda: %s%s" % (
         name, faction, parts or "nessuna risorsa questa volta",
         " — 👑 boss battuto!" if boss_beaten else ""
-    )
-    send_guild_discord(msg)
+    ), "", "**Traguardo: %d / %d**" % (grand_total, goal)]
+    for f in leaderboard:
+        lines.append("**%s** — %d" % (f["faction"], f["total"]))
+        for m in f["members"]:
+            lines.append("　• %s: %d" % (m["name"], m["total"]))
+    send_guild_discord("\n".join(lines))
+    send_guild_discord("\n".join(lines))
     return redirect(url_for("home"))
 
 
 @app.route("/guild")
 def guild_leaderboard():
     leaderboard = db.get_guild_leaderboard()
-    leaderboard.sort(key=lambda d: sum(d["resources"].values()), reverse=True)
-    for f in leaderboard:
-        f["gloria"] = f["resources"].get("gloria", 0)
-        f["other_resources"] = {k: v for k, v in f["resources"].items() if k != "gloria"}
-        f["total"] = sum(f["resources"].values())
-    return render_template("guild.html", leaderboard=leaderboard)
+    try:
+        goal = int(db.get_setting("guild_goal", "300"))
+    except (TypeError, ValueError):
+        goal = 300
+    grand_total = sum(f["total"] for f in leaderboard)
+    return render_template("guild.html", leaderboard=leaderboard, goal=goal, grand_total=grand_total)
 
 
 @app.route("/admin", methods=["GET", "POST"])
@@ -680,13 +693,23 @@ def admin():
             elif action == "toggle_unlimited":
                 current = db.get_setting("unlimited_runs") == "1"
                 db.set_setting("unlimited_runs", "0" if current else "1")
+            elif action == "set_guild_goal":
+                try:
+                    nuovo_traguardo = max(1, int(request.form.get("guild_goal", "300")))
+                except ValueError:
+                    nuovo_traguardo = 300
+                db.set_setting("guild_goal", str(nuovo_traguardo))
     locks = db.get_all_locks()
     characters = db.get_all_characters()
     for c in characters:
         c["level"] = engine.level_from_xp(c["xp"])
     unlimited_runs = db.get_setting("unlimited_runs") == "1"
+    try:
+        guild_goal = int(db.get_setting("guild_goal", "300"))
+    except (TypeError, ValueError):
+        guild_goal = 300
     return render_template("admin.html", locks=locks, characters=characters, classes=gd.CLASSES, error=error,
-                            unlimited_runs=unlimited_runs)
+                            unlimited_runs=unlimited_runs, guild_goal=guild_goal)
 
 
 # ─── ARENA (duelli PvP asincroni) ─────────────────────────────────────────

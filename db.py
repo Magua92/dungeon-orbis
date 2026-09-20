@@ -52,11 +52,13 @@ def init_db():
             key TEXT PRIMARY KEY,
             value TEXT
         );
-        CREATE TABLE IF NOT EXISTS guild_treasury (
-            faction TEXT PRIMARY KEY,
-            resources TEXT NOT NULL,   -- JSON: {"oro": 12, "legname": 4, ...}
+        CREATE TABLE IF NOT EXISTS guild_contributions (
+            faction TEXT NOT NULL,
+            name TEXT NOT NULL,
+            resources TEXT NOT NULL,   -- JSON: {"oro": 12, "gloria": 50, ...}
             boss_kills INTEGER NOT NULL DEFAULT 0,
-            updated_at TEXT NOT NULL
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (faction, name)
         );
         CREATE TABLE IF NOT EXISTS arena_matches (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -301,10 +303,12 @@ def update_arena_match(match_id, timestamp, **fields):
 
 # ─── GILDA DEGLI AVVENTURIERI (cassa comune, alimentata da donazioni volontarie) ──
 # Nessuna iscrizione tracciata qui: chi fa parte della Gilda lo dichiara su Discord,
-# tra i giocatori. Il gioco si limita a contare le donazioni quando arrivano.
-def add_guild_contribution(faction, loot, boss_beaten, timestamp):
+# tra i giocatori. Il gioco si limita a contare le donazioni quando arrivano, per
+# personaggio, cosi' si puo' ricostruire sia il totale di fazione sia chi ha dato cosa.
+def add_guild_contribution(faction, name, loot, boss_beaten, timestamp):
     conn = get_conn()
-    row = conn.execute("SELECT resources, boss_kills FROM guild_treasury WHERE faction=?", (faction,)).fetchone()
+    row = conn.execute("SELECT resources, boss_kills FROM guild_contributions WHERE faction=? AND name=?",
+                        (faction, name)).fetchone()
     resources = json.loads(row["resources"]) if row else {}
     boss_kills = row["boss_kills"] if row else 0
     for k, v in loot.items():
@@ -312,21 +316,32 @@ def add_guild_contribution(faction, loot, boss_beaten, timestamp):
     if boss_beaten:
         boss_kills += 1
     conn.execute(
-        "INSERT INTO guild_treasury (faction, resources, boss_kills, updated_at) VALUES (?,?,?,?) "
-        "ON CONFLICT(faction) DO UPDATE SET resources=excluded.resources, boss_kills=excluded.boss_kills, updated_at=excluded.updated_at",
-        (faction, json.dumps(resources, ensure_ascii=False), boss_kills, timestamp)
+        "INSERT INTO guild_contributions (faction, name, resources, boss_kills, updated_at) VALUES (?,?,?,?,?) "
+        "ON CONFLICT(faction, name) DO UPDATE SET resources=excluded.resources, boss_kills=excluded.boss_kills, updated_at=excluded.updated_at",
+        (faction, name, json.dumps(resources, ensure_ascii=False), boss_kills, timestamp)
     )
     conn.commit()
     conn.close()
 
 
 def get_guild_leaderboard():
+    """Una voce per fazione, ordinate per totale punti (risorse + gloria) discendente,
+    ciascuna con l'elenco dei personaggi che hanno contribuito, ordinato allo stesso modo."""
     conn = get_conn()
-    rows = conn.execute("SELECT * FROM guild_treasury").fetchall()
+    rows = conn.execute("SELECT * FROM guild_contributions").fetchall()
     conn.close()
-    result = []
+    by_faction = {}
     for r in rows:
-        d = dict(r)
-        d["resources"] = json.loads(d["resources"])
-        result.append(d)
-    return result
+        resources = json.loads(r["resources"])
+        entry = by_faction.setdefault(r["faction"], {"faction": r["faction"], "resources": {}, "boss_kills": 0, "members": []})
+        for k, v in resources.items():
+            entry["resources"][k] = entry["resources"].get(k, 0) + v
+        entry["boss_kills"] += r["boss_kills"]
+        entry["members"].append({"name": r["name"], "resources": resources, "boss_kills": r["boss_kills"],
+                                  "total": sum(resources.values())})
+    for entry in by_faction.values():
+        entry["members"].sort(key=lambda m: m["total"], reverse=True)
+        entry["gloria"] = entry["resources"].get("gloria", 0)
+        entry["other_resources"] = {k: v for k, v in entry["resources"].items() if k != "gloria"}
+        entry["total"] = sum(entry["resources"].values())
+    return sorted(by_faction.values(), key=lambda e: e["total"], reverse=True)
