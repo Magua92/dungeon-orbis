@@ -501,6 +501,9 @@ BARDO_ARENA_TIMORE_REDUCTION = 1
 # le difese - applicato in un solo punto per l'azione (_arena_apply_damage) e per i
 # tick automatici (Martello/Ariete/bruciatura) in resolve_arena_round.
 ARENA_DMG_MULTIPLIER = 2
+# Il 30% del Cavaliere (CAVALIERE_WARD_CHANCE) resta invariato in Spedizione; con i
+# danni raddoppiati, in Arena scende al 20% per non renderlo troppo dominante.
+ARENA_CAVALIERE_WARD_CHANCE = 0.20
 
 # Gilda degli Avventurieri: valore in "gloria" (una risorsa a parte, per la classifica
 # della cassa comune) di un boss battuto — none/il_diaulo/uomorsomaiale come chiave.

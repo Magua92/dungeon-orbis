@@ -205,17 +205,19 @@ def _troop_falls(run, member, log):
         log.append("Penitente: il sacrificio non è vano, recuperi %d Timore." % bonus)
 
 
-def _seguito_absorb(run, incoming_dmg):
+def _seguito_absorb(run, incoming_dmg, cavaliere_ward_chance=None):
     """Tenta di far assorbire il colpo fisico dal Seguito. Ritorna (assorbito: bool,
-    danno_residuo_al_leader: int, righe_di_log: list)."""
+    danno_residuo_al_leader: int, righe_di_log: list). cavaliere_ward_chance permette
+    di usare una percentuale diversa da quella di default (usata dall'Arena)."""
     log = []
     seg = run["seguito"]
+    ward_chance = cavaliere_ward_chance if cavaliere_ward_chance is not None else gd.CAVALIERE_WARD_CHANCE
 
     def alive_of(t):
         return [m for m in seg if m["alive"] and m["type"] == t]
 
     # Cavaliere: possibilita' di annullare l'attacco senza consumare nessuno
-    if alive_of("cavaliere") and random.random() < gd.CAVALIERE_WARD_CHANCE:
+    if alive_of("cavaliere") and random.random() < ward_chance:
         log.append("Un Cavaliere del Seguito para il colpo: l'attacco viene annullato.")
         return True, 0, log
 
@@ -1679,7 +1681,7 @@ def _arena_apply_damage(actor, target, target_status, dmg, timore_dmg, log):
 
     if effective_dmg > 0:
         residuo = effective_dmg
-        absorbed, residuo, seg_log = _seguito_absorb(target, residuo)
+        absorbed, residuo, seg_log = _seguito_absorb(target, residuo, cavaliere_ward_chance=gd.ARENA_CAVALIERE_WARD_CHANCE)
         log.extend(seg_log)
         if absorbed and residuo <= 0:
             pass
