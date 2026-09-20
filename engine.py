@@ -1649,8 +1649,6 @@ def _arena_apply_damage(actor, target, target_status, dmg, timore_dmg, log):
     qui pero' il bersaglio e' un giocatore vero con scudi/buff propri, cosa che il
     nemico scriptato del PvE non ha mai avuto bisogno di gestire."""
     flags = actor.get("equip_flags", {})
-    dmg = dmg * gd.ARENA_DMG_MULTIPLIER
-    timore_dmg = timore_dmg * gd.ARENA_DMG_MULTIPLIER
     effective_dmg = dmg
     bonus_timore = 0
     crit_bonus_timore = 0
@@ -1667,7 +1665,7 @@ def _arena_apply_damage(actor, target, target_status, dmg, timore_dmg, log):
             target_status["stunned"] = target_status.get("stunned", 0) + 1
             log.append("%s stordisce %s per 1 turno!" % (actor["name"], target["name"]))
 
-        bonus_timore += flags.get("dmg_timore_nemico", 0) * gd.ARENA_DMG_MULTIPLIER
+        bonus_timore += flags.get("dmg_timore_nemico", 0)
 
         if flags.get("critico_colpisce_timore") and random.random() < gd.ITEM_CRIT_CHANCE:
             crit_bonus_timore += effective_dmg
@@ -1796,6 +1794,9 @@ def _arena_take_action(actor, target, action_key, is_first, log):
         log.append("Arciere: una scarica di frecce di supporto aggiunge +%d danni al tuo colpo." % gd.ARCIERE_DMG_BONUS)
 
     if dmg > 0 or timore_dmg > 0:
+        dmg *= gd.ARENA_DMG_MULTIPLIER
+        timore_dmg *= gd.ARENA_DMG_MULTIPLIER
+        log.append("La furia dell'Arena raddoppia il colpo.")
         _arena_apply_damage(actor, target, target_status, dmg, timore_dmg, log)
     return None
 
