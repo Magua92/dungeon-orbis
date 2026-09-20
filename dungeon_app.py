@@ -758,9 +758,10 @@ def _arena_ability_choices(char_class):
 
 def _build_arena_state_from_form(faction, name, char):
     """Costruisce lo stato di combattimento arena di un lato a partire dai campi
-    del form di preparazione — stessa logica di /start_run, ma senza il vincolo del
-    livello sulle abilita' selezionabili (vedi _arena_ability_choices)."""
-    level = engine.level_from_xp(char["xp"])
+    del form di preparazione — stessa logica di /start_run, ma tutti i personaggi
+    entrano in Arena con le statistiche di livello massimo, non quello reale: cosi'
+    a fare la differenza sono le scelte di equip/Seguito/abilita', non il grind."""
+    level = gd.MAX_LEVEL
     choices = _arena_ability_choices(char["class"])
     selectable_keys = {a["key"] for a in choices if not a["solo_spedizioni"]}
     chosen = [k for k in request.form.getlist("abilities") if k in selectable_keys]
@@ -868,7 +869,7 @@ def arena_prepare():
     owned = db.get_owned_equipment(faction, name)
     return render_template(
         "arena_prepare.html", faction=faction, name=name, char_class=char["class"],
-        level=engine.level_from_xp(char["xp"]), opp_faction=opp_faction, opp_name=opp_name,
+        level=gd.MAX_LEVEL, opp_faction=opp_faction, opp_name=opp_name,
         match_id=match_id, entourage_types=gd.ENTOURAGE_TYPES, max_pick=gd.ENTOURAGE_MAX_PICK,
         owned=owned, owned_ids={o["item_id"] for o in owned}, items=gd.ITEMS,
         abilities_all=_arena_ability_choices(char["class"]), ability_loadout_size=gd.ABILITY_LOADOUT_SIZE,
