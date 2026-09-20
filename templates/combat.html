@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 {% set c = run.combat %}
-<h2 style="text-align:center">{% if defeat_pending %}💥 L'ultimo scontro{% elif is_boss %}👑 Il Miniboss{% else %}⚔️ Combattimento{% endif %} — Round {{ c.round }}</h2>
+<h2 style="text-align:center">{% if defeat_pending %}💥 L'ultimo scontro{% elif c.special_boss %}😈 Boss Speciale{% elif is_boss %}👑 Il Miniboss{% else %}⚔️ Combattimento{% endif %} — Round {{ c.round }}</h2>
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem;align-items:start;margin-bottom:1rem">
   {% include "_status.html" %}
