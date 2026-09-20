@@ -610,9 +610,9 @@ def _apply_ability_action(run, ability_key):
 
     if ability_key == "scudo_magico":
         _set_cooldown(run, ability_key)
-        combat["shield_physical_pool"] += 7
-        combat["shield_timore_pool"] += 10
-        log.append("Scudo Magico: eretta una barriera che assorbira' i prossimi 7 danni fisici e 10 al Timore.")
+        combat["shield_physical_pool"] += 5
+        combat["shield_timore_pool"] += 6
+        log.append("Scudo Magico: eretta una barriera che assorbira' i prossimi 5 danni fisici e 6 al Timore.")
         return 0, 0, log, False
 
     if ability_key == "raggio_congelante":

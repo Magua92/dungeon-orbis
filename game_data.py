@@ -55,7 +55,7 @@ CLASSES = {
         "icon": "✨",
         "abilities": [
             {"key": "colpo_arcano",     "lvl": 1,  "name": "Colpo Arcano",     "type": "danno",    "cd": 2, "desc": "4-6 danni; ogni utilizzo aumenta permanentemente di 1 il danno dei prossimi Colpi Arcani, per la durata del combattimento."},
-            {"key": "scudo_magico",     "lvl": 1,  "name": "Scudo Magico",     "type": "supporto", "cd": 4, "desc": "Uno scudo assorbe i prossimi 7 danni fisici e i prossimi 10 danni al Timore, finche' dura o finche' il combattimento finisce."},
+            {"key": "scudo_magico",     "lvl": 1,  "name": "Scudo Magico",     "type": "supporto", "cd": 4, "desc": "Uno scudo assorbe i prossimi 5 danni fisici e i prossimi 6 danni al Timore, finche' dura o finche' il combattimento finisce."},
             {"key": "raggio_congelante","lvl": 1,  "name": "Raggio Congelante","type": "danno",    "cd": 3, "desc": "5-7 danni; 50% di rallentare il nemico, che agisce per ultimo per 2 turni."},
             {"key": "parola_guaritrice","lvl": 3,  "name": "Parola Guaritrice","type": "supporto", "cd": 4, "desc": "Cura 5-10 Vita e 6-12 Timore."},
             {"key": "potenziale_arcano","lvl": 5,  "name": "Potenziale Arcano","type": "passiva",  "desc": "Sempre attiva: +2 danno permanente al Colpo Arcano per tutta la run, +1 ulteriore per ogni Gemma raccolta."},
