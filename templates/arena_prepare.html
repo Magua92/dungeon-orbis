@@ -3,7 +3,8 @@
 <h1 style="text-align:center">🗡️ Preparazione al Duello</h1>
 <div class="panel-box" style="text-align:center">
   {% if portrait_url %}<img src="{{ portrait_url }}" alt="" style="max-width:120px;max-height:120px;border-radius:10px;border:1px solid var(--border);object-fit:cover;margin-bottom:0.6rem">{% endif %}
-  <h3 style="margin:0.3rem 0">{{ name }} — {{ char_class }} · Livello {{ level }}</h3>
+  <h3 style="margin:0.3rem 0">{{ name }} — {{ char_class }} · Livello {{ level }} in Arena</h3>
+  <div style="font-size:0.72rem;opacity:0.6">In Arena tutti i personaggi combattono con le statistiche di livello massimo, a prescindere dal livello reale.</div>
   <div style="font-size:0.8rem;opacity:0.75">contro <strong>{{ opp_name }}</strong> ({{ opp_faction }})</div>
 </div>
 
