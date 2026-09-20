@@ -72,4 +72,15 @@
     <button type="submit" class="btn" style="width:100%">Sblocca tutti i personaggi</button>
   </form>
 </div>
+
+<div class="panel-box">
+  <h3>🏛️ Traguardo Gilda</h3>
+  <div style="font-size:0.85rem;margin-bottom:0.6rem">Attuale: <strong>{{ guild_goal }}</strong> punti (risorse + gloria combinate)</div>
+  <form method="post" style="display:flex;gap:0.5rem;align-items:center">
+    <input type="number" name="guild_goal" value="{{ guild_goal }}" min="1" style="width:120px">
+    <input type="password" name="password" placeholder="Password amministratore" style="flex:1">
+    <input type="hidden" name="action" value="set_guild_goal">
+    <button type="submit" class="btn">Aggiorna</button>
+  </form>
+</div>
 {% endblock %}

@@ -3,6 +3,11 @@
 <h1 style="text-align:center">🏛️ Gilda degli Avventurieri</h1>
 <p style="text-align:center;opacity:0.75;font-style:italic">Cassa comune, alimentata dalle donazioni di fine spedizione.</p>
 
+<div class="panel-box">
+  <div class="bar-label"><span>Traguardo</span><span>{{ grand_total }} / {{ goal }}</span></div>
+  <div class="bar-track"><div class="bar-fill pv" style="width:{{ [(grand_total / goal * 100) | round | int, 100] | min }}%"></div></div>
+</div>
+
 {% if not leaderboard %}
 <div class="panel-box" style="text-align:center;opacity:0.7">Nessuna donazione ancora registrata.</div>
 {% endif %}
@@ -19,6 +24,11 @@
       {% for k, v in f.other_resources.items() %}{{ v }} {{ k }}{% if not loop.last %}, {% endif %}{% endfor %}
     {% else %}<em>nessuna</em>{% endif %}
   </div>
+  {% if f.members %}
+  <div style="margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid #4a3d2833;font-size:0.78rem;opacity:0.8">
+    {% for m in f.members %}<div>• {{ m.name }}: {{ m.total }} punti{% if m.boss_kills %} ({{ m.boss_kills }} boss){% endif %}</div>{% endfor %}
+  </div>
+  {% endif %}
 </div>
 {% endfor %}
 
