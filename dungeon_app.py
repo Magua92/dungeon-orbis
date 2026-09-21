@@ -777,7 +777,7 @@ def _build_arena_state_from_form(faction, name, char):
     entourage_bonus = sum(a.get("grants_extra_entourage", 0) for a in choices if a["key"] in equipped_abilities)
 
     entourage = request.form.getlist("entourage")
-    entourage = [e for e in entourage if e in gd.ENTOURAGE_TYPES][: gd.ENTOURAGE_MAX_PICK + entourage_bonus]
+    entourage = [e for e in entourage if e in gd.ENTOURAGE_TYPES and e not in gd.ARENA_BANNED_ENTOURAGE][: gd.ENTOURAGE_MAX_PICK + entourage_bonus]
 
     owned_ids = {e["item_id"] for e in db.get_owned_equipment(faction, name)}
     has_strumenti = "strumenti_del_mestiere" in equipped_abilities
@@ -875,10 +875,11 @@ def arena_prepare():
             return redirect(url_for("arena_home", faction=faction, name=name))
 
     owned = db.get_owned_equipment(faction, name)
+    arena_entourage_types = {k: v for k, v in gd.ENTOURAGE_TYPES.items() if k not in gd.ARENA_BANNED_ENTOURAGE}
     return render_template(
         "arena_prepare.html", faction=faction, name=name, char_class=char["class"],
         level=gd.MAX_LEVEL, opp_faction=opp_faction, opp_name=opp_name,
-        match_id=match_id, entourage_types=gd.ENTOURAGE_TYPES, max_pick=gd.ENTOURAGE_MAX_PICK,
+        match_id=match_id, entourage_types=arena_entourage_types, max_pick=gd.ENTOURAGE_MAX_PICK,
         owned=owned, owned_ids={o["item_id"] for o in owned}, items=gd.ITEMS,
         abilities_all=_arena_ability_choices(char["class"]), ability_loadout_size=gd.ABILITY_LOADOUT_SIZE,
         portrait_url=_portrait_url(faction, name, char.get("portrait")),

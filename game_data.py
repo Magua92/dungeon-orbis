@@ -500,7 +500,11 @@ BARDO_ARENA_TIMORE_REDUCTION = 1
 # fonti di danno (attacchi, abilita', contrattacchi del Seguito, bruciature), non
 # le difese - applicato in un solo punto per l'azione (_arena_apply_damage) e per i
 # tick automatici (Martello/Ariete/bruciatura) in resolve_arena_round.
-ARENA_DMG_MULTIPLIER = 2
+ARENA_DMG_MULTIPLIER = 1.1
+# Cavaliere (annulla per intero, RNG) e Bardo (variante arena poco impattante ma
+# comunque un "premio" gratuito) banditi dall'Arena: troppo determinanti/casuali
+# per un duello 1v1, restano invece normalissimi in Spedizione.
+ARENA_BANNED_ENTOURAGE = {"cavaliere", "bardo"}
 # Il 30% del Cavaliere (CAVALIERE_WARD_CHANCE) resta invariato in Spedizione; con i
 # danni raddoppiati, in Arena scende al 20% per non renderlo troppo dominante.
 ARENA_CAVALIERE_WARD_CHANCE = 0.20
