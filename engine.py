@@ -330,6 +330,7 @@ def start_combat(run, tier):
         "enemy_buff_stat": None, "enemy_buff_turns": 0,
         "player_debuff_stat": None, "player_debuff_turns": 0,
         "player_bleed_turns": 0, "player_bleed_dmg": 0, "player_bleed_target": None, "player_bleed_kind": None,
+        "enemy_bleed_turns": 0, "enemy_bleed_dmg": 0, "enemy_bleed_kind": None,
         "diaulo_signore_cd": 0,
         "uomorsomaiale_sventrare_cd": 0, "uomorsomaiale_ruggito_cd": 0,
         "player_dmg_debuff": 0, "player_dmg_debuff_turns": 0,
@@ -980,6 +981,19 @@ def resolve_combat_round(run, action_key):
             run["log"] = log
             return "vittoria"
 
+    if combat.get("enemy_bleed_turns", 0) > 0:
+        enemy_bleed_dmg = combat.get("enemy_bleed_dmg", 0)
+        enemy_kind = combat.get("enemy_bleed_kind") or "sanguinamento"
+        enemy_verbo = "Il veleno nel nemico" if enemy_kind == "veleno" else "Il sanguinamento del nemico"
+        combat["enemy_pv"] -= enemy_bleed_dmg
+        log.append("%s si aggrava: perde %d PV." % (enemy_verbo, enemy_bleed_dmg))
+        combat["enemy_bleed_turns"] -= 1
+        if combat["enemy_bleed_turns"] <= 0:
+            combat["enemy_bleed_kind"] = None
+        if combat["enemy_pv"] <= 0 or combat["enemy_timore"] <= 0:
+            run["log"] = log
+            return "vittoria"
+
     if combat.get("player_bleed_turns", 0) > 0:
         bleed_dmg = combat.get("player_bleed_dmg", 0)
         kind = combat.get("player_bleed_kind") or "sanguinamento"
@@ -1034,6 +1048,19 @@ def resolve_combat_round(run, action_key):
         fear = max(1, total_timore_dmg - enemy_mres) if total_timore_dmg > 0 else 0
         combat["enemy_pv"] -= phys
         combat["enemy_timore"] -= fear
+
+        if phys > 0 and combat.get("enemy_bleed_turns", 0) <= 0:
+            proc_kind = "sanguinamento" if flags.get("sanguinamento_su_colpo") else ("veleno" if flags.get("veleno_su_colpo") else None)
+            if proc_kind and random.random() < gd.ITEM_ENEMY_DOT_CHANCE:
+                combat["enemy_bleed_turns"] = gd.ITEM_ENEMY_DOT_TURNS
+                combat["enemy_bleed_dmg"] = random.randint(*gd.ITEM_ENEMY_DOT_DMG)
+                combat["enemy_bleed_kind"] = proc_kind
+                if proc_kind == "veleno":
+                    log.append("Il Plettro del Destino incide: il nemico è avvelenato, perderà %d PV a turno per %d turni." %
+                                (combat["enemy_bleed_dmg"], gd.ITEM_ENEMY_DOT_TURNS))
+                else:
+                    log.append("La Zanna dell'Uomorsomaiale morde ancora: il nemico sanguina, perdendo %d PV a turno per %d turni." %
+                                (combat["enemy_bleed_dmg"], gd.ITEM_ENEMY_DOT_TURNS))
 
     def enemy_turn():
         if combat.get("enemy_stunned", 0) > 0:
@@ -1313,14 +1340,21 @@ def roll_loot(run, is_boss):
         log.append("Recuperi anche %d Oro dalle spoglie del nemico." % guaranteed_gold)
 
     item_id = None
-    drop_chance = gd.BOSS_ITEM_DROP_CHANCE if is_boss else gd.NORMAL_ITEM_DROP_CHANCE
-    if random.random() < drop_chance:
-        weights = gd.BOSS_DROP_RARITY_WEIGHTS if is_boss else gd.NORMAL_DROP_RARITY_WEIGHTS
-        rarity = random.choices(list(weights.keys()), weights=list(weights.values()))[0]
-        candidates = [k for k, v in gd.ITEMS.items() if v["rarity"] == rarity]
-        if candidates:
-            item_id = random.choice(candidates)
-            log.append("Un oggetto raro attira la tua attenzione: %s!" % gd.ITEMS[item_id]["name"])
+    exclusive_item = gd.BOSS_EXCLUSIVE_ITEMS.get(run.get("special_boss_fought")) if is_boss else None
+    if exclusive_item:
+        # drop garantito al 100%, non passa dal tiro a probabilita'/rarita' qui sotto:
+        # e' il trofeo esclusivo di QUEL boss, non un oggetto tra tanti.
+        item_id = exclusive_item
+        log.append("Un oggetto raro attira la tua attenzione: %s!" % gd.ITEMS[item_id]["name"])
+    else:
+        drop_chance = gd.BOSS_ITEM_DROP_CHANCE if is_boss else gd.NORMAL_ITEM_DROP_CHANCE
+        if random.random() < drop_chance:
+            weights = gd.BOSS_DROP_RARITY_WEIGHTS if is_boss else gd.NORMAL_DROP_RARITY_WEIGHTS
+            rarity = random.choices(list(weights.keys()), weights=list(weights.values()))[0]
+            candidates = [k for k, v in gd.ITEMS.items() if v["rarity"] == rarity and k not in gd.BOSS_EXCLUSIVE_ITEMS.values()]
+            if candidates:
+                item_id = random.choice(candidates)
+                log.append("Un oggetto raro attira la tua attenzione: %s!" % gd.ITEMS[item_id]["name"])
     return log, item_id
 
 

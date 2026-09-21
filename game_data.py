@@ -498,7 +498,23 @@ ITEMS = {
     "collana_silenzio":      {"name": "Collana del Silenzio",          "slot": "armatura", "rarity": "base",        "effects": {"mres": 2},                      "lore": "Tolta dal collo di un cadavere che, dicono, non aveva mai smesso di sorridere."},
     "mantello_bruma":        {"name": "Mantello di Bruma Sottile",     "slot": "armatura", "rarity": "epica",       "effects": {"mres": 2, "armor": 1},          "lore": "Chi lo indossa dice di sentire meno il freddo — e meno anche la paura."},
     "velo_nebrahil":         {"name": "Velo della Nébrahil",           "slot": "armatura", "rarity": "leggendaria", "effects": {"mres": 3, "immunita_primo_pauroso": True}, "lore": "Si narra fosse indossato dalla Regina stessa, nei giorni in cui la nebbia sembrava non finire mai."},
+    # DROP ESCLUSIVI DEI BOSS SPECIALI (vedi BOSS_EXCLUSIVE_ITEMS sotto — non compaiono
+    # mai nel pool casuale, solo battendo il boss corrispondente)
+    "zanna_uomorsomaiale":   {"name": "Zanna dell'Uomorsomaiale",      "slot": "arma", "rarity": "leggendaria", "effects": {"dmg": 4, "sanguinamento_su_colpo": True}, "lore": "Il boscimbroglio la strappò dalla mascella della bestia mentre ancora si dibatteva. Non ha mai smesso di sanguinare da allora — solo, ora sanguina il nemico."},
+    "plettro_destino":       {"name": "Plettro del Destino",           "slot": "armatura", "rarity": "leggendaria", "effects": {"mres": 3, "veleno_su_colpo": True}, "lore": "Un frammento d'ombra che non è mai tornato al suo padrone. Sussurra ancora, a volte — ma ora sussurra contro i tuoi nemici."},
 }
+
+# Drop esclusivi: questi due oggetti non entrano mai nel pool casuale pesato per
+# rarita' (vedi roll_loot in engine.py) — compaiono SOLO battendo il boss speciale
+# corrispondente, dove il drop e' garantito al 100% invece che a probabilita'.
+BOSS_EXCLUSIVE_ITEMS = {"uomorsomaiale": "zanna_uomorsomaiale", "il_diaulo": "plettro_destino"}
+
+# ─── OGGETTI CHE INFLIGGONO UN EFFETTO NEL TEMPO AL NEMICO (Zanna/Plettro sopra) ────
+# Specchio di ENEMY_BLEED_* (che e' invece il nemico a infliggere al giocatore):
+# stessa logica, stesso tetto di un solo effetto attivo alla volta sul nemico.
+ITEM_ENEMY_DOT_CHANCE = 0.30   # per colpo andato a segno, solo se il nemico non ne sta gia' subendo uno
+ITEM_ENEMY_DOT_TURNS = 3
+ITEM_ENEMY_DOT_DMG = (2, 4)    # per turno
 
 EQUIP_SLOTS = ["slot_arma", "slot_armatura", "slot_jolly"]  # jolly: arma o armatura, a scelta
 LOOT_LEVEL_SCALING = True  # se True, roll_loot() applica level_factor() al bottino
