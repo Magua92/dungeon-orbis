@@ -157,11 +157,11 @@
     if (m) e.enemyPvHeal += parseInt(m[1], 10);
 
     // Danno subito dal giocatore
-    m = text.match(/perdi\s*(\d+)\s*Timore/i) || text.match(/Timore scende di\s*(\d+)/i);
+    m = text.match(/perdi\s*(\d+)\s*Timore/i) || text.match(/Timore scende di\s*(\d+)/i) || text.match(/ti costa\s*(\d+)\s*Timore/i);
     if (m) {
       e.playerTimoreDmg += parseInt(m[1], 10);
     } else {
-      m = text.match(/subisci\s*(\d+)/i) || text.match(/perdi\s*(\d+)/i);
+      m = text.match(/subisci\s*(\d+)/i) || text.match(/perdi\s*(\d+)/i) || text.match(/ti costa\s*(\d+)\s*Vita/i);
       if (m) e.playerPvDmg += parseInt(m[1], 10);
     }
 
@@ -290,7 +290,7 @@
     // proprio: restano leggibili e colorati nel log, ma senza audio/animazione — la
     // mossa che li causa (es. il morso di Sventrare, l'iniezione de IL DIAULO) mantiene
     // comunque il proprio suono dedicato, verificato sopra.
-    if (/^Il sanguinamento |^Il veleno |ti ferisce in profondità: sanguini/.test(text)) return null;
+    if (/^Il sanguinamento |^Il veleno |ti ferisce in profondità: sanguini|sei avvelenato/.test(text)) return null;
     if (/^Doppio Colpo:/.test(text)) return 'doppio_colpo';
     if (/^Formazione Difensiva:|^Pontifex Maximus:/.test(text)) return 'buff_difesa';
     // la cura del nemico su se stesso ("Nome si riprende, recuperando...") va
@@ -308,7 +308,7 @@
   // non avere alcun effetto sonoro (vedi classify sopra) ma essere comunque colorata.
   function logColorClass(text) {
     if (/^Il sanguinamento |ti ferisce in profondità: sanguini|la ferita sanguina/.test(text)) return 'log-bleed';
-    if (/^Il veleno |inietta un veleno/.test(text)) return 'log-poison';
+    if (/^Il veleno |inietta un veleno|sei avvelenato/.test(text)) return 'log-poison';
     if (/recuperi|ti infonde|si riprende/.test(text)) return 'log-heal';
     return '';
   }
