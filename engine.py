@@ -331,6 +331,7 @@ def start_combat(run, tier):
         "player_debuff_stat": None, "player_debuff_turns": 0,
         "player_bleed_turns": 0, "player_bleed_dmg": 0, "player_bleed_target": None, "player_bleed_kind": None,
         "enemy_bleed_turns": 0, "enemy_bleed_dmg": 0, "enemy_bleed_kind": None,
+        "egida_triggered": False,
         "diaulo_signore_cd": 0,
         "uomorsomaiale_sventrare_cd": 0, "uomorsomaiale_ruggito_cd": 0,
         "player_dmg_debuff": 0, "player_dmg_debuff_turns": 0,
@@ -379,13 +380,32 @@ def _effective_defense(run, combat, stat):
     oggetti/passive + bonus temporanei di combattimento, meno un eventuale debuff
     nemico attivo su quella specifica statistica."""
     base = run["leader"][stat] + run["temp_buffs"][stat] + combat.get("combat_%s_bonus" % stat, 0)
-    if stat == "armor" and run.get("equip_flags", {}).get("raddoppio_sotto_quarto") \
-            and run["leader"]["pv_max"] > 0 \
-            and run["leader"]["pv"] < run["leader"]["pv_max"] * gd.RADDOPPIO_SOTTO_QUARTO_SOGLIA:
-        base *= 2
     if combat.get("player_debuff_stat") == stat and combat.get("player_debuff_turns", 0) > 0:
         base -= gd.ENEMY_DEBUFF_AMOUNT
     return max(0, base)
+
+
+def _check_egida_trigger(run, combat, log):
+    """Egida dell'Ultimo Bastione: la prima volta che la Vita scende sotto la soglia in
+    questo combattimento, concede un bonus fisso e permanente all'Armatura per il resto
+    dello scontro (non si riattiva se la Vita risale e ridiscende)."""
+    bonus = run.get("equip_flags", {}).get("bonus_armor_sotto_quarto", 0)
+    if not bonus or combat.get("egida_triggered"):
+        return
+    if run["leader"]["pv_max"] > 0 and run["leader"]["pv"] < run["leader"]["pv_max"] * gd.RADDOPPIO_SOTTO_QUARTO_SOGLIA:
+        combat["egida_triggered"] = True
+        combat["combat_armor_bonus"] = combat.get("combat_armor_bonus", 0) + bonus
+        log.append("L'Egida dell'Ultimo Bastione risponde al pericolo: +%d Armatura per il resto dello scontro." % bonus)
+
+
+def _maybe_reflect_fixed(run, combat, log):
+    """Armatura del Sigillo Infranto: possibilita' fissa di riflettere una quantita'
+    fissa di danno sul nemico ad ogni colpo fisico subito."""
+    chance = run.get("equip_flags", {}).get("riflette_chance", 0)
+    amount = run.get("equip_flags", {}).get("riflette_fisso", 0)
+    if chance and amount and random.random() < chance:
+        combat["enemy_pv"] -= amount
+        log.append("La tua armatura riflette %d danni sul nemico." % amount)
 
 
 def _special_boss_deal_damage(run, combat, log, phys, timore_amt):
@@ -411,11 +431,7 @@ def _special_boss_deal_damage(run, combat, log, phys, timore_amt):
         if dmg_to_leader > 0:
             run["leader"]["pv"] -= dmg_to_leader
             log.append("Subisci %d danni fisici." % dmg_to_leader)
-            riflette_pct = run.get("equip_flags", {}).get("riflette_pct", 0)
-            if riflette_pct:
-                reflected = max(1, round(dmg_to_leader * riflette_pct))
-                combat["enemy_pv"] -= reflected
-                log.append("La tua armatura riflette %d danni sul nemico." % reflected)
+            _maybe_reflect_fixed(run, combat, log)
     if timore_amt > 0:
         residuo_t = timore_amt
         pool_t = combat.get("shield_timore_pool", 0)
@@ -500,11 +516,14 @@ def _uomorsomaiale_turn(run, combat, log):
         dmg = random.randint(*spec["sventrare_dmg"])
         log.append("Sventrare: l'Uomorsomaiale affonda le zanne.")
         _special_boss_deal_damage(run, combat, log, dmg, 0)
-        combat["player_bleed_turns"] = spec["sventrare_bleed_turni"]
-        combat["player_bleed_dmg"] = spec["sventrare_bleed_dmg"]
-        combat["player_bleed_target"] = "pv"
-        combat["player_bleed_kind"] = "sanguinamento"
-        log.append("Sventrare: la ferita sanguina per %d PV a turno per %d turni." % (spec["sventrare_bleed_dmg"], spec["sventrare_bleed_turni"]))
+        if run.get("equip_flags", {}).get("immunita_sanguinamento"):
+            log.append("L'Elmo del Primo Re di Karag-Duraz protegge dalla ferita: non sanguini.")
+        else:
+            combat["player_bleed_turns"] = spec["sventrare_bleed_turni"]
+            combat["player_bleed_dmg"] = spec["sventrare_bleed_dmg"]
+            combat["player_bleed_target"] = "pv"
+            combat["player_bleed_kind"] = "sanguinamento"
+            log.append("Sventrare: la ferita sanguina per %d PV a turno per %d turni." % (spec["sventrare_bleed_dmg"], spec["sventrare_bleed_turni"]))
         return
 
     if mossa == "ruggito":
@@ -1022,6 +1041,10 @@ def resolve_combat_round(run, action_key):
                 enemy_mres += gd.ENEMY_BUFF_AMOUNT
 
         flags = run.get("equip_flags", {})
+        penetrazione = flags.get("penetrazione_armor", 0)
+        if penetrazione:
+            enemy_armor = max(0, enemy_armor - penetrazione)
+
         effective_dmg = dmg
         bonus_timore = 0
         crit_bonus_timore = 0
@@ -1061,6 +1084,13 @@ def resolve_combat_round(run, action_key):
                 else:
                     log.append("La Zanna dell'Uomorsomaiale morde ancora: il nemico sanguina, perdendo %d PV a turno per %d turni." %
                                 (combat["enemy_bleed_dmg"], gd.ITEM_ENEMY_DOT_TURNS))
+
+        if phys > 0:
+            shield_chance = flags.get("shield_pv_su_colpo_chance", 0)
+            shield_amount = flags.get("shield_pv_su_colpo_amount", 0)
+            if shield_chance and shield_amount and random.random() < shield_chance:
+                combat["shield_physical_pool"] = combat.get("shield_physical_pool", 0) + shield_amount
+                log.append("Lo Spadone Lungo di Ser Gowain vibra: guadagni %d scudo Vita." % shield_amount)
 
     def enemy_turn():
         if combat.get("enemy_stunned", 0) > 0:
@@ -1157,15 +1187,19 @@ def resolve_combat_round(run, action_key):
 
         # Sanguinamento: danno nel tempo, ai PV o al Timore a seconda dell'archetipo
         if combat.get("player_bleed_turns", 0) <= 0 and random.random() < gd.ENEMY_BLEED_CHANCE:
+            kind = combat.get("dot_kind", "sanguinamento")
+            if kind == "sanguinamento" and run.get("equip_flags", {}).get("immunita_sanguinamento"):
+                log.append("L'Elmo del Primo Re di Karag-Duraz protegge dalla ferita: non sanguini.")
+                return
             target = {"fisico": "pv", "mentale": "timore"}.get(archetype) or random.choice(["pv", "timore"])
             is_boss = combat.get("tier") == "boss"
             bleed_dmg = gd.ENEMY_BLEED_DMG_BOSS if is_boss else random.randint(*gd.ENEMY_BLEED_DMG_NORMAL)
             combat["player_bleed_turns"] = gd.ENEMY_BLEED_TURNS
             combat["player_bleed_dmg"] = bleed_dmg
             combat["player_bleed_target"] = target
-            combat["player_bleed_kind"] = combat.get("dot_kind", "sanguinamento")
+            combat["player_bleed_kind"] = kind
             nome_stat = "Vita" if target == "pv" else "Timore"
-            if combat["player_bleed_kind"] == "veleno":
+            if kind == "veleno":
                 log.append("%s ti morde: sei avvelenato, perderai %d %s a turno per %d turni." %
                             (combat["name"], bleed_dmg, nome_stat, gd.ENEMY_BLEED_TURNS))
             else:
@@ -1230,11 +1264,7 @@ def resolve_combat_round(run, action_key):
                 if dmg_to_leader > 0:
                     run["leader"]["pv"] -= dmg_to_leader
                     log.append("Subisci %d danni fisici." % dmg_to_leader)
-                    riflette_pct = run.get("equip_flags", {}).get("riflette_pct", 0)
-                    if riflette_pct:
-                        reflected = max(1, round(dmg_to_leader * riflette_pct))
-                        combat["enemy_pv"] -= reflected
-                        log.append("La tua armatura riflette %d danni sul nemico." % reflected)
+                    _maybe_reflect_fixed(run, combat, log)
 
     if leader_first:
         apply_leader_damage_to_enemy()
@@ -1260,6 +1290,8 @@ def resolve_combat_round(run, action_key):
         if combat["enemy_pv"] <= 0 or combat["enemy_timore"] <= 0:
             run["log"] = log
             return "vittoria"
+
+    _check_egida_trigger(run, combat, log)
 
     outcome = _check_defeat(run, log)
     if outcome:
@@ -1608,6 +1640,9 @@ def compute_xp_gain(run):
     if run["result"] == "vittoria":
         xp += 30
     xp += run.get("bonus_xp", 0)
+    xp_bonus_pct = run.get("equip_flags", {}).get("xp_bonus_pct", 0)
+    if xp_bonus_pct:
+        xp = round(xp * (1 + xp_bonus_pct))
     return xp
 
 
