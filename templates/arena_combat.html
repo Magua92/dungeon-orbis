@@ -288,7 +288,7 @@
 
   if (waiting) {
     setInterval(function() {
-      fetch('/arena/match/{{ match.id }}/status').then(function(r) { return r.json(); }).then(function(data) {
+      fetch('/arena/match/{{ match.id }}/status?faction={{ faction|urlencode }}&name={{ name|urlencode }}').then(function(r) { return r.json(); }).then(function(data) {
         if (data.round !== matchRound || data.status !== 'in_corso') {
           window.location.reload();
         }

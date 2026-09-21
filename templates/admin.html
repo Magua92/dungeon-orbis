@@ -92,6 +92,17 @@
 </div>
 
 <div class="panel-box">
+  <h3>⚔️ Bonus danno in Arena</h3>
+  <div style="font-size:0.85rem;margin-bottom:0.6rem">Attuale: <strong>+{{ arena_dmg_bonus_pct }}%</strong> a tutte le fonti di danno (attacchi, abilità, Seguito, bruciature)</div>
+  <form method="post" style="display:flex;gap:0.5rem;align-items:center">
+    <input type="number" name="arena_dmg_bonus_pct" value="{{ arena_dmg_bonus_pct }}" min="0" style="width:120px">
+    <input type="password" name="password" placeholder="Password amministratore" style="flex:1">
+    <input type="hidden" name="action" value="set_arena_dmg_bonus">
+    <button type="submit" class="btn">Aggiorna</button>
+  </form>
+</div>
+
+<div class="panel-box">
   <h3>⚔️ Duelli in Arena in corso</h3>
   {% if not arena_matches %}<div style="opacity:0.7;font-size:0.85rem">Nessun duello in attesa o in corso al momento.</div>{% endif %}
   {% for m in arena_matches %}
