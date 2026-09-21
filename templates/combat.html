@@ -1,6 +1,23 @@
 {% extends "base.html" %}
 {% block content %}
 {% set c = run.combat %}
+<style>
+@keyframes lungeRight { 0%{transform:translateX(0)} 40%{transform:translateX(18px)} 100%{transform:translateX(0)} }
+@keyframes lungeLeft { 0%{transform:translateX(0)} 40%{transform:translateX(-18px)} 100%{transform:translateX(0)} }
+@keyframes shakeStage { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
+@keyframes floatUp { 0%{transform:translate(-50%,0);opacity:1} 100%{transform:translate(-50%,-42px);opacity:0} }
+@keyframes logIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:translateY(0)} }
+.lunge-right{animation:lungeRight 0.32s ease-out}
+.lunge-left{animation:lungeLeft 0.32s ease-out}
+.shake{animation:shakeStage 0.35s ease-in-out}
+.floating-num{position:absolute;left:50%;top:-6px;font-family:'Cinzel',serif;font-weight:bold;font-size:1.15rem;text-shadow:0 1px 3px #000;pointer-events:none;animation:floatUp 0.9s ease-out forwards;z-index:5;white-space:nowrap}
+.floating-num.dmg{color:#e05a5a}
+.floating-num.timore-dmg{color:#b98af0}
+.floating-num.heal{color:#5ad07a}
+.bar-fill{transition:width 0.35s ease-out}
+.combat-log > div{animation:logIn 0.22s ease-out;transition:background-color 1.1s ease-out;border-radius:3px}
+.combat-log > div.log-new{background-color:rgba(255,255,255,0.09)}
+</style>
 <h2 style="text-align:center">{% if defeat_pending %}💥 L'ultimo scontro{% elif c.special_boss %}😈 Boss Speciale{% elif is_boss %}👑 Il Miniboss{% else %}⚔️ Combattimento{% endif %} — Round {{ c.round }}</h2>
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem;align-items:start;margin-bottom:1rem">
@@ -14,9 +31,9 @@
       {% if c.fear_chance > 0 %}<span style="font-size:0.65rem;background:#4a2a7a55;border:1px solid var(--timore-light);color:var(--timore-light);padding:0.1rem 0.4rem;border-radius:4px">👁️ Può colpire il Timore</span>{% endif %}
     </div>
     <div class="bar-label"><span>PV Nemico</span><span>{{ c.enemy_pv }} / {{ c.enemy_pv_max }}</span></div>
-    <div class="bar-track"><div class="bar-fill enemy-pv" style="width:{{ (c.enemy_pv / c.enemy_pv_max * 100) | round | int if c.enemy_pv > 0 else 0 }}%"></div></div>
+    <div class="bar-track"><div id="enemy-pv-bar" class="bar-fill enemy-pv" style="width:{{ (c.enemy_pv / c.enemy_pv_max * 100) | round | int if c.enemy_pv > 0 else 0 }}%"></div></div>
     <div class="bar-label" style="margin-top:0.4rem"><span>😰 Timore Nemico</span><span>{{ c.enemy_timore }} / {{ c.enemy_timore_max }}</span></div>
-    <div class="bar-track"><div class="bar-fill timore" style="width:{{ (c.enemy_timore / c.enemy_timore_max * 100) | round | int if c.enemy_timore > 0 else 0 }}%"></div></div>
+    <div class="bar-track"><div id="enemy-timore-bar" class="bar-fill timore" style="width:{{ (c.enemy_timore / c.enemy_timore_max * 100) | round | int if c.enemy_timore > 0 else 0 }}%"></div></div>
   </div>
 </div>
 
@@ -74,6 +91,104 @@
   var enemy = document.getElementById('duel-enemy');
   var sword = document.getElementById('duel-sword');
   var stage = document.getElementById('duel-stage');
+  var enemyPvBar = document.getElementById('enemy-pv-bar');
+  var enemyTimoreBar = document.getElementById('enemy-timore-bar');
+  var enemyPvMax = {{ c.enemy_pv_max }};
+  var enemyTimoreMax = {{ c.enemy_timore_max }};
+  var enemyPvTarget = {{ c.enemy_pv }};
+  var enemyTimoreTarget = {{ c.enemy_timore }};
+
+  // Estrazione best-effort dei numeri di danno/cura da una riga di log testuale.
+  // Se il fraseggio non combacia semplicemente non anima/mostra nulla per quella
+  // riga: non e' mai un problema bloccante, solo estetico (vedi snap finale sotto).
+  function parseEnemyDamage(text) {
+    var pv = 0, timore = 0, m;
+    m = text.match(/(\d+)\s*danni al Timore del nemico/);
+    if (m) timore += parseInt(m[1], 10);
+    m = text.match(/(\d+)\s*danni fisici/);
+    if (m) pv += parseInt(m[1], 10);
+    if (!/danni fisici/.test(text)) {
+      m = text.match(/infliggi\s*(\d+)\s*danni/);
+      if (m) pv += parseInt(m[1], 10);
+    }
+    m = text.match(/colpisc[a-zA-Zàòì]*\s*per\s*(\d+)/);
+    if (m) pv += parseInt(m[1], 10);
+    m = text.match(/(\d+)\s*danni al nemico/);
+    if (m) pv += parseInt(m[1], 10);
+    return { pv: pv, timore: timore };
+  }
+  function parsePlayerDamage(text) {
+    var m = text.match(/Subisci\s*(\d+)/) || text.match(/perdi\s*(\d+)/);
+    return m ? parseInt(m[1], 10) : null;
+  }
+  function parseHealAmount(text) {
+    var m = text.match(/recuperi\s*(\d+)/) || text.match(/ti infonde\s*(\d+)/) || text.match(/si riprende.*?(\d+)/);
+    return m ? parseInt(m[1], 10) : null;
+  }
+
+  function setBarWidth(barEl, value, max) {
+    if (!barEl || !max) return;
+    var pct = Math.max(0, Math.min(100, Math.round(value / max * 100)));
+    barEl.style.width = pct + '%';
+  }
+
+  // Ricostruisce il valore "di partenza" delle barre nemiche sommando i danni
+  // che riusciamo a leggere dalle righe di questo round, cosi' la barra puo'
+  // scendere in sincrono col log invece di comparire gia' al valore finale.
+  // Se la somma non torna perfettamente (fraseggio non previsto), non importa:
+  // alla fine della sequenza la barra viene comunque riportata al valore esatto
+  // inviato dal server.
+  var enemyPvNow = enemyPvTarget, enemyTimoreNow = enemyTimoreTarget;
+  try {
+    var totalPvDmg = 0, totalTimoreDmg = 0;
+    lines.forEach(function(line) {
+      if (line === '__BEAT__') return;
+      var d = parseEnemyDamage(line);
+      totalPvDmg += d.pv;
+      totalTimoreDmg += d.timore;
+    });
+    enemyPvNow = Math.min(enemyPvMax, enemyPvTarget + totalPvDmg);
+    enemyTimoreNow = Math.min(enemyTimoreMax, enemyTimoreTarget + totalTimoreDmg);
+    if (enemyPvBar) { enemyPvBar.style.transition = 'none'; setBarWidth(enemyPvBar, enemyPvNow, enemyPvMax); }
+    if (enemyTimoreBar) { enemyTimoreBar.style.transition = 'none'; setBarWidth(enemyTimoreBar, enemyTimoreNow, enemyTimoreMax); }
+    requestAnimationFrame(function() {
+      if (enemyPvBar) enemyPvBar.style.transition = '';
+      if (enemyTimoreBar) enemyTimoreBar.style.transition = '';
+    });
+  } catch (e) { /* nessun impatto sul combattimento se il parsing fallisce */ }
+
+  function floatNumber(target, text, cls) {
+    try {
+      if (!target || !stage) return;
+      var stageRect = stage.getBoundingClientRect();
+      var tRect = target.getBoundingClientRect();
+      var x = tRect.left + target.offsetWidth / 2 - stageRect.left;
+      var el = document.createElement('div');
+      el.className = 'floating-num ' + cls;
+      el.style.left = x + 'px';
+      el.textContent = text;
+      stage.appendChild(el);
+      setTimeout(function() { el.remove(); }, 950);
+    } catch (e) {}
+  }
+
+  function lunge(el, dir) {
+    try {
+      if (!el) return;
+      el.classList.remove('lunge-right', 'lunge-left');
+      void el.offsetWidth;
+      el.classList.add(dir === 'right' ? 'lunge-right' : 'lunge-left');
+    } catch (e) {}
+  }
+
+  function shakeStage() {
+    try {
+      if (!stage) return;
+      stage.classList.remove('shake');
+      void stage.offsetWidth;
+      stage.classList.add('shake');
+    } catch (e) {}
+  }
 
   function classify(text) {
     // eventi automatici del Seguito/passivi: restano leggibili nel log ma non generano
@@ -122,6 +237,16 @@
     return '';
   }
 
+  function lineIcon(cue, colorClass) {
+    if (colorClass === 'log-bleed') return '🩸 ';
+    if (colorClass === 'log-poison') return '☠️ ';
+    if (colorClass === 'log-heal') return '✨ ';
+    if (cue === 'hit_dealt' || cue === 'doppio_colpo') return '⚔️ ';
+    if (cue === 'hit_taken') return '💥 ';
+    if (cue === 'shield') return '🛡️ ';
+    return '';
+  }
+
   function flash(el) {
     if (!el) return;
     el.style.transition = 'none';
@@ -163,17 +288,38 @@
   // altrimenti (suono sintetizzato, silenziato, o nessuna riga con suono) usa una breve
   // attesa fissa. Cosi' due mosse non si accavallano mai, qualunque sia la durata reale
   // del file mp3 caricato.
-  function playCue(cue) {
+  function playCue(cue, lineText) {
     return new Promise(function(resolve) {
       var settled = false;
       function finish() { if (!settled) { settled = true; resolve(); } }
 
-      if (cue === 'hit_dealt' || cue === 'doppio_colpo') { swing(player, enemy); }
-      else if (cue === 'hit_taken') { swing(enemy, player); }
-      else if (cue === 'heal' || cue === 'buff_difesa') { flash(player); }
-      else if (cue === 'diaulo_amico' || cue === 'diaulo_butta' || cue === 'diaulo_base') { swing(enemy, player); }
+      if (lineText && /critico/i.test(lineText)) { shakeStage(); }
+
+      if (cue === 'hit_dealt' || cue === 'doppio_colpo') {
+        lunge(player, 'right'); swing(player, enemy);
+        try {
+          var d = parseEnemyDamage(lineText || '');
+          if (d.pv > 0) { enemyPvNow = Math.max(0, enemyPvNow - d.pv); setBarWidth(enemyPvBar, enemyPvNow, enemyPvMax); floatNumber(enemy, '-' + d.pv, 'dmg'); }
+          if (d.timore > 0) { enemyTimoreNow = Math.max(0, enemyTimoreNow - d.timore); setBarWidth(enemyTimoreBar, enemyTimoreNow, enemyTimoreMax); floatNumber(enemy, '-' + d.timore + ' 😰', 'timore-dmg'); }
+        } catch (e) {}
+      }
+      else if (cue === 'hit_taken') {
+        lunge(enemy, 'left'); swing(enemy, player);
+        try { var pd = parsePlayerDamage(lineText || ''); if (pd) floatNumber(player, '-' + pd, 'dmg'); } catch (e) {}
+      }
+      else if (cue === 'heal' || cue === 'buff_difesa') {
+        flash(player);
+        if (cue === 'heal') { try { var h = parseHealAmount(lineText || ''); if (h) floatNumber(player, '+' + h, 'heal'); } catch (e) {} }
+      }
+      else if (cue === 'diaulo_amico' || cue === 'diaulo_butta' || cue === 'diaulo_base') {
+        lunge(enemy, 'left'); swing(enemy, player);
+        try { var pd2 = parsePlayerDamage(lineText || ''); if (pd2) floatNumber(player, '-' + pd2, 'dmg'); } catch (e) {}
+      }
       else if (cue === 'diaulo_signore') { flash(player); flash(enemy); }
-      else if (cue === 'uomorsomaiale_base' || cue === 'uomorsomaiale_sventrare') { swing(enemy, player); }
+      else if (cue === 'uomorsomaiale_base' || cue === 'uomorsomaiale_sventrare') {
+        lunge(enemy, 'left'); swing(enemy, player);
+        try { var pd3 = parsePlayerDamage(lineText || ''); if (pd3) floatNumber(player, '-' + pd3, 'dmg'); } catch (e) {}
+      }
       else if (cue === 'uomorsomaiale_ruggito') { flash(player); }
 
       if (!cue) { setTimeout(finish, 350); return; }
@@ -202,13 +348,20 @@
       }
       var cue = classify(line);
       var div = document.createElement('div');
-      div.textContent = line;
       var colorClass = logColorClass(line);
-      if (colorClass) div.className = colorClass;
+      div.textContent = lineIcon(cue, colorClass) + line;
+      div.className = (colorClass ? colorClass + ' ' : '') + 'log-new';
       logEl.appendChild(div);
       logEl.scrollTop = logEl.scrollHeight;
-      await playCue(cue);
+      setTimeout((function(d) { return function() { d.classList.remove('log-new'); }; })(div), 60);
+      await playCue(cue, line);
     }
+    // Rete di sicurezza: qualunque scarto accumulato dal parsing best-effort viene
+    // azzerato riportando le barre nemiche all'esatto valore inviato dal server.
+    try {
+      if (enemyPvBar) setBarWidth(enemyPvBar, enemyPvTarget, enemyPvMax);
+      if (enemyTimoreBar) setBarWidth(enemyTimoreBar, enemyTimoreTarget, enemyTimoreMax);
+    } catch (e) {}
     if (defeatPending) {
       await wait(1500);
       window.location.href = '/run_end';
