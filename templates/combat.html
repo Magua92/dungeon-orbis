@@ -290,7 +290,12 @@
     // proprio: restano leggibili e colorati nel log, ma senza audio/animazione — la
     // mossa che li causa (es. il morso di Sventrare, l'iniezione de IL DIAULO) mantiene
     // comunque il proprio suono dedicato, verificato sopra.
-    if (/^Il sanguinamento |^Il veleno |ti ferisce in profondità: sanguini|sei avvelenato/.test(text)) return null;
+    // Il "lancio" dell'effetto (quando viene applicato per la prima volta) ha un suono
+    // dedicato; il tick ricorrente che segue ad ogni turno resta silenzioso, altrimenti
+    // spammerebbe lo stesso suono identico per tutta la durata dell'effetto.
+    if (/sei avvelenato|veleno bevuto in precedenza si manifesta/.test(text)) return 'poison_applied';
+    if (/ti ferisce in profondità: sanguini/.test(text)) return 'bleed_applied';
+    if (/^Il sanguinamento |^Il veleno /.test(text)) return null;
     if (/^Doppio Colpo:/.test(text)) return 'doppio_colpo';
     if (/^Formazione Difensiva:|^Pontifex Maximus:/.test(text)) return 'buff_difesa';
     // la cura del nemico su se stesso ("Nome si riprende, recuperando...") va
@@ -381,6 +386,7 @@
       else if (cue === 'diaulo_signore') { flash(player); flash(enemy); }
       else if (cue === 'uomorsomaiale_base' || cue === 'uomorsomaiale_sventrare') { lunge(enemy, 'left'); swing(enemy, player); }
       else if (cue === 'uomorsomaiale_ruggito') { flash(player); }
+      else if (cue === 'bleed_applied' || cue === 'poison_applied') { lunge(enemy, 'left'); swing(enemy, player); }
       else if (cue === 'shield') { flash(player); }
 
       if (!cue) { setTimeout(finish, 350); return; }
