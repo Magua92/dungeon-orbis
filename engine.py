@@ -1730,7 +1730,7 @@ def _arena_apply_damage(actor, target, target_status, dmg, timore_dmg, log):
             log.append("Il Timore di %s scende di %d." % (target["name"], timore_to_target))
 
 
-def _arena_take_action(actor, target, action_key, is_first, log):
+def _arena_take_action(actor, target, action_key, is_first, log, dmg_multiplier):
     """Risolve l'azione di UN lato contro l'altro. is_first indica se questo lato
     agisce per primo in questo round (serve al bonus danno dell'Arciere). Ritorna
     'fuga' se il lato ha abbandonato il duello, altrimenti None."""
@@ -1796,9 +1796,9 @@ def _arena_take_action(actor, target, action_key, is_first, log):
         log.append("Arciere: una scarica di frecce di supporto aggiunge +%d danni al tuo colpo." % gd.ARCIERE_DMG_BONUS)
 
     if dmg > 0 or timore_dmg > 0:
-        dmg *= gd.ARENA_DMG_MULTIPLIER
-        timore_dmg *= gd.ARENA_DMG_MULTIPLIER
-        log.append("La furia dell'Arena raddoppia il colpo.")
+        dmg = round(dmg * dmg_multiplier)
+        timore_dmg = round(timore_dmg * dmg_multiplier)
+        log.append("La furia dell'Arena aumenta il colpo del %d%%." % round((dmg_multiplier - 1) * 100))
         _arena_apply_damage(actor, target, target_status, dmg, timore_dmg, log)
     return None
 
@@ -1831,10 +1831,12 @@ def start_arena_match(state_a, state_b):
     return log
 
 
-def resolve_arena_round(state_a, state_b, action_a, action_b):
+def resolve_arena_round(state_a, state_b, action_a, action_b, dmg_multiplier=None):
     """Risolve un intero round: entrambe le azioni sono gia' state scelte in modo
     indipendente e asincrono. Ritorna (esito, log) con esito in
-    'in_corso' | 'vittoria_a' | 'vittoria_b' | 'pareggio'."""
+    'in_corso' | 'vittoria_a' | 'vittoria_b' | 'pareggio'. dmg_multiplier permette
+    di sovrascrivere ARENA_DMG_MULTIPLIER (usato dal pannello admin)."""
+    dmg_multiplier = dmg_multiplier if dmg_multiplier is not None else gd.ARENA_DMG_MULTIPLIER
     log = []
     status_a, status_b = state_a["arena_status"], state_b["arena_status"]
 
@@ -1845,7 +1847,7 @@ def resolve_arena_round(state_a, state_b, action_a, action_b):
             if side_state["cooldowns"][k] > 0:
                 side_state["cooldowns"][k] -= 1
         if side_status.get("burn_turns", 0) > 0:
-            burn_dmg = side_status.get("burn_dmg", 0) * gd.ARENA_DMG_MULTIPLIER
+            burn_dmg = round(side_status.get("burn_dmg", 0) * dmg_multiplier)
             side_state["leader"]["pv"] -= burn_dmg
             log.append("Le fiamme infliggono %d danni a %s." % (burn_dmg, side_state["name"]))
             side_status["burn_turns"] -= 1
@@ -1878,12 +1880,12 @@ def resolve_arena_round(state_a, state_b, action_a, action_b):
         arieti = sum(1 for m in side_state["seguito"] if m["alive"] and m["type"] == "ariete")
         if martelli:
             opp_armor = _arena_effective_defense(opponent_state, opponent_state["arena_status"], "armor")
-            colpo = max(1, martelli * gd.MARTELLO_COUNTER_DMG * gd.ARENA_DMG_MULTIPLIER - opp_armor)
+            colpo = max(1, round(martelli * gd.MARTELLO_COUNTER_DMG * dmg_multiplier) - opp_armor)
             opponent_state["leader"]["pv"] -= colpo
             log.append("I Compagni del Martello di %s colpiscono %s per %d danni." % (side_state["name"], opponent_state["name"], colpo))
         if arieti:
             opp_mres = _arena_effective_defense(opponent_state, opponent_state["arena_status"], "mres")
-            colpo = max(1, arieti * gd.ARIETE_COUNTER_DMG * gd.ARENA_DMG_MULTIPLIER - opp_mres)
+            colpo = max(1, round(arieti * gd.ARIETE_COUNTER_DMG * dmg_multiplier) - opp_mres)
             opponent_state["leader"]["timore"] -= colpo
             log.append("L'Ariete di %s incalza il Timore di %s per %d danni." % (side_state["name"], opponent_state["name"], colpo))
 
@@ -1901,7 +1903,7 @@ def resolve_arena_round(state_a, state_b, action_a, action_b):
         order.reverse()
 
     for i, (side, actor, target, action_key) in enumerate(order):
-        result = _arena_take_action(actor, target, action_key, i == 0, log)
+        result = _arena_take_action(actor, target, action_key, i == 0, log, dmg_multiplier)
         if result == "fuga":
             return ("vittoria_b" if side == "a" else "vittoria_a"), log
         esito = _arena_check_victory(state_a, state_b)

@@ -726,6 +726,12 @@ def admin():
                     mid = 0
                 if mid:
                     db.delete_arena_match(mid)
+            elif action == "set_arena_dmg_bonus":
+                try:
+                    nuovo_bonus = max(0, int(request.form.get("arena_dmg_bonus_pct", "10")))
+                except ValueError:
+                    nuovo_bonus = 10
+                db.set_setting("arena_dmg_bonus_pct", str(nuovo_bonus))
     locks = db.get_all_locks()
     characters = db.get_all_characters()
     for c in characters:
@@ -735,9 +741,13 @@ def admin():
         guild_goal = int(db.get_setting("guild_goal", "300"))
     except (TypeError, ValueError):
         guild_goal = 300
+    try:
+        arena_dmg_bonus_pct = int(db.get_setting("arena_dmg_bonus_pct", "10"))
+    except (TypeError, ValueError):
+        arena_dmg_bonus_pct = 10
     return render_template("admin.html", locks=locks, characters=characters, classes=gd.CLASSES, error=error,
                             unlimited_runs=unlimited_runs, guild_goal=guild_goal,
-                            arena_matches=db.get_ongoing_arena_matches())
+                            arena_matches=db.get_ongoing_arena_matches(), arena_dmg_bonus_pct=arena_dmg_bonus_pct)
 
 
 # ─── ARENA (duelli PvP asincroni) ─────────────────────────────────────────
@@ -991,7 +1001,12 @@ def arena_match_act(match_id):
 
     action_a = action_key if side == "a" else other_pending
     action_b = action_key if side == "b" else other_pending
-    esito, log = engine.resolve_arena_round(match["state_a"], match["state_b"], action_a, action_b)
+    try:
+        arena_dmg_pct = int(db.get_setting("arena_dmg_bonus_pct", "10"))
+    except (TypeError, ValueError):
+        arena_dmg_pct = 10
+    esito, log = engine.resolve_arena_round(match["state_a"], match["state_b"], action_a, action_b,
+                                             dmg_multiplier=1 + arena_dmg_pct / 100)
     fields = {
         "state_a": match["state_a"], "state_b": match["state_b"], "log": log,
         "round": match["round"] + 1, "pending_action_a": None, "pending_action_b": None,
@@ -1036,6 +1051,13 @@ def arena_match_status(match_id):
     opponent_viewed = None
     side = _arena_side(match, faction, name) if faction and name else None
     if side:
+        # anche una richiesta di stato "leggera" conta come aver visto il round
+        # corrente: altrimenti due giocatori bloccati entrambi in attesa l'uno
+        # dell'altro (nessuno dei due carica mai una pagina intera) restano
+        # bloccati per sempre, senza che nessuno dei due possa sbloccare l'altro.
+        if match.get("viewed_round_%s" % side, 0) < match["round"]:
+            db.update_arena_match(match_id, datetime.datetime.utcnow().isoformat(),
+                                   **{"viewed_round_%s" % side: match["round"]})
         other_side = "b" if side == "a" else "a"
         opponent_viewed = match.get("viewed_round_%s" % other_side, 0) >= match["round"]
     return {"status": match["status"], "round": match["round"], "updated_at": match["updated_at"],
