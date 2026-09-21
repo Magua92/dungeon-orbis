@@ -57,7 +57,7 @@
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0.8rem">
         <div>
           <label>Slot Arma<br>
-            <select name="slot_arma" style="width:100%">
+            <select name="slot_arma" id="slot-arma-select" style="width:100%">
               <option value="">— vuoto —</option>
               {% for o in owned %}{% if items[o.item_id].slot == 'arma' %}
               <option value="{{ o.item_id }}">{{ items[o.item_id].name }}</option>
@@ -70,7 +70,7 @@
         </div>
         <div>
           <label>Slot Armatura<br>
-            <select name="slot_armatura" style="width:100%">
+            <select name="slot_armatura" id="slot-armatura-select" style="width:100%">
               <option value="">— vuoto —</option>
               {% for o in owned %}{% if items[o.item_id].slot == 'armatura' %}
               <option value="{{ o.item_id }}">{{ items[o.item_id].name }}</option>
@@ -83,7 +83,7 @@
         </div>
         <div>
           <label>Slot Jolly (arma o armatura)<br>
-            <select name="slot_jolly" style="width:100%">
+            <select name="slot_jolly" id="slot-jolly-select" style="width:100%">
               <option value="">— vuoto —</option>
               {% for o in owned %}
               <option value="{{ o.item_id }}">{{ items[o.item_id].name }} ({{ items[o.item_id].slot }})</option>
@@ -173,6 +173,29 @@
 </form>
 
 <script>
+// Uno stesso oggetto non puo' occupare due slot contemporaneamente (altrimenti il suo
+// bonus verrebbe applicato due volte): se e' gia' scelto in uno slot, diventa non
+// selezionabile negli altri due, finche' non lo si libera da li'.
+(function() {
+  var selects = [
+    document.getElementById('slot-arma-select'),
+    document.getElementById('slot-armatura-select'),
+    document.getElementById('slot-jolly-select')
+  ].filter(Boolean);
+  function refreshSlotExclusivity() {
+    var selectedValues = selects.map(function(s) { return s.value; });
+    selects.forEach(function(select, idx) {
+      Array.prototype.forEach.call(select.options, function(opt) {
+        if (!opt.value) return; // "— vuoto —"
+        var chosenElsewhere = selectedValues.some(function(v, j) { return j !== idx && v === opt.value; });
+        opt.disabled = chosenElsewhere;
+      });
+    });
+  }
+  selects.forEach(function(s) { s.addEventListener('change', refreshSlotExclusivity); });
+  refreshSlotExclusivity();
+})();
+
 document.querySelectorAll('.entourage-check').forEach(function(cb) {
   cb.addEventListener('change', function() {
     var checked = document.querySelectorAll('.entourage-check:checked');

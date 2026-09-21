@@ -36,21 +36,21 @@
     {% if not owned %}<div style="opacity:0.7;font-size:0.85rem;margin-bottom:0.6rem">Non possiedi ancora nessun oggetto — gli slot resteranno vuoti, a meno che tu non abbia Strumenti del Mestiere.</div>{% endif %}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0.8rem">
       <div><label>Slot Arma<br>
-        <select name="slot_arma" style="width:100%">
+        <select name="slot_arma" id="slot-arma-select" style="width:100%">
           <option value="">— vuoto —</option>
           {% for o in owned %}{% if items[o.item_id].slot == 'arma' %}<option value="{{ o.item_id }}">{{ items[o.item_id].name }}</option>{% endif %}{% endfor %}
           {% for iid, it in items.items() %}{% if it.slot == 'arma' and it.rarity == 'base' and iid not in owned_ids %}<option value="{{ iid }}" class="strumenti-option" disabled>{{ it.name }} (Strumenti del Mestiere)</option>{% endif %}{% endfor %}
         </select>
       </label></div>
       <div><label>Slot Armatura<br>
-        <select name="slot_armatura" style="width:100%">
+        <select name="slot_armatura" id="slot-armatura-select" style="width:100%">
           <option value="">— vuoto —</option>
           {% for o in owned %}{% if items[o.item_id].slot == 'armatura' %}<option value="{{ o.item_id }}">{{ items[o.item_id].name }}</option>{% endif %}{% endfor %}
           {% for iid, it in items.items() %}{% if it.slot == 'armatura' and it.rarity == 'base' and iid not in owned_ids %}<option value="{{ iid }}" class="strumenti-option" disabled>{{ it.name }} (Strumenti del Mestiere)</option>{% endif %}{% endfor %}
         </select>
       </label></div>
       <div><label>Slot Jolly (arma o armatura)<br>
-        <select name="slot_jolly" style="width:100%">
+        <select name="slot_jolly" id="slot-jolly-select" style="width:100%">
           <option value="">— vuoto —</option>
           {% for o in owned %}<option value="{{ o.item_id }}">{{ items[o.item_id].name }} ({{ items[o.item_id].slot }})</option>{% endfor %}
           {% for iid, it in items.items() %}{% if it.rarity == 'base' and iid not in owned_ids %}<option value="{{ iid }}" class="strumenti-option" disabled>{{ it.name }} ({{ it.slot }}, Strumenti del Mestiere)</option>{% endif %}{% endfor %}
@@ -80,6 +80,39 @@
 </form>
 
 <script>
+// Uno stesso oggetto non puo' occupare due slot contemporaneamente (altrimenti il suo
+// bonus verrebbe applicato due volte): se e' gia' scelto in uno slot, diventa non
+// selezionabile negli altri due. Si combina con l'abilitazione delle opzioni
+// "Strumenti del Mestiere" (che restano comunque disabilitate finche' quell'abilita'
+// non e' selezionata, indipendentemente da questo controllo).
+var slotSelects = [
+  document.getElementById('slot-arma-select'),
+  document.getElementById('slot-armatura-select'),
+  document.getElementById('slot-jolly-select')
+].filter(Boolean);
+function refreshSlotOptions() {
+  var strumenti = document.querySelector('.ability-check[data-strumenti="1"]');
+  var strumentiEnabled = strumenti && strumenti.checked;
+  document.querySelectorAll('.strumenti-option').forEach(function(opt) {
+    opt.disabled = !strumentiEnabled;
+    opt.dataset.strumentiBlocked = strumentiEnabled ? '' : '1';
+  });
+  var selectedValues = slotSelects.map(function(s) { return s.value; });
+  slotSelects.forEach(function(select, idx) {
+    Array.prototype.forEach.call(select.options, function(opt) {
+      if (!opt.value) return; // "— vuoto —"
+      var chosenElsewhere = selectedValues.some(function(v, j) { return j !== idx && v === opt.value; });
+      if (chosenElsewhere) {
+        opt.disabled = true;
+      } else if (opt.dataset.strumentiBlocked !== '1') {
+        opt.disabled = false;
+      }
+    });
+  });
+}
+slotSelects.forEach(function(s) { s.addEventListener('change', refreshSlotOptions); });
+refreshSlotOptions();
+
 document.querySelectorAll('.entourage-check').forEach(function(cb) {
   cb.addEventListener('change', function() {
     var checked = document.querySelectorAll('.entourage-check:checked');
@@ -94,9 +127,7 @@ document.querySelectorAll('.ability-check').forEach(function(cb) {
     var err = document.getElementById('ability-error');
     if (checked.length > {{ ability_loadout_size - 1 }}) { this.checked = false; err.style.display = 'block'; }
     else { err.style.display = 'none'; }
-    var strumenti = document.querySelector('.ability-check[data-strumenti="1"]');
-    var enable = strumenti && strumenti.checked;
-    document.querySelectorAll('.strumenti-option').forEach(function(opt) { opt.disabled = !enable; });
+    refreshSlotOptions();
   });
 });
 </script>
