@@ -184,6 +184,10 @@
     if ((m = text.match(/^(.+?) recupera (\d+) Timore \(cura passiva\)\./))) return [{ side: sideOf(m[1]), field: 'timore', delta: parseInt(m[2], 10) }];
     if ((m = text.match(/^I Compagni del Martello di (.+?) colpiscono (.+?) per (\d+) danni\./))) return [{ side: sideOf(m[2]), field: 'pv', delta: -parseInt(m[3], 10) }];
     if ((m = text.match(/^L'Ariete di (.+?) incalza il Timore di (.+?) per (\d+) danni\./))) return [{ side: sideOf(m[2]), field: 'timore', delta: -parseInt(m[3], 10) }];
+    if ((m = text.match(/morde ancora: (.+?) sanguina, perdendo (\d+) PV/))) return [{ side: sideOf(m[1]), field: 'pv', delta: -parseInt(m[2], 10) }];
+    if ((m = text.match(/incide: (.+?) è avvelenato, perderà (\d+) PV/))) return [{ side: sideOf(m[1]), field: 'pv', delta: -parseInt(m[2], 10) }];
+    if ((m = text.match(/^Il sanguinamento di (.+?) si aggrava: perde (\d+) PV/))) return [{ side: sideOf(m[1]), field: 'pv', delta: -parseInt(m[2], 10) }];
+    if ((m = text.match(/^Il veleno in (.+?) si diffonde: perde (\d+) PV/))) return [{ side: sideOf(m[1]), field: 'pv', delta: -parseInt(m[2], 10) }];
     return [];
   }
 
@@ -286,6 +290,8 @@
     if (cue === 'combat' || cue === 'doppio_colpo') return '⚔️ ';
     if (cue === 'shield') return '🛡️ ';
     if (cue === 'heal') return '✨ ';
+    if (cue === 'enemy_bleed_applied') return '🩸 ';
+    if (cue === 'enemy_poison_applied') return '☠️ ';
     return '';
   }
 
@@ -344,6 +350,8 @@
     if (/\(cura passiva\)|^I Compagni del Martello di |^L'Ariete di |^Penitente:|si consuma per proteggerlo/.test(text)) return null;
     if (/^Doppio Colpo:/.test(text)) return 'doppio_colpo';
     if (/^Formazione Difensiva:|^Pontifex Maximus:/.test(text)) return 'buff_difesa';
+    if (/morde ancora: .+ sanguina/.test(text)) return 'enemy_bleed_applied';
+    if (/incide: .+ è avvelenato/.test(text)) return 'enemy_poison_applied';
     if (/infligg|colpiscono per|incalza il Timore|Colpo critico|subisce \d+ danni|scende di \d+|Le fiamme infliggono/.test(text)) return 'combat';
     if (/scudo|Scudo|assorbe|attutisce|ignora completamente|stordisce/.test(text)) return 'shield';
     if (/recuperi|recupera|ti infonde/.test(text)) return 'heal';
@@ -359,6 +367,8 @@
     if ((m = text.match(/^Il Timore di (.+?) scende di \d+\./))) return m[1];
     if ((m = text.match(/^Lo scudo (?:magico )?di (.+?) (?:attutisce|assorbe)/))) return m[1];
     if ((m = text.match(/^Le fiamme infliggono \d+ danni a (.+?)\./))) return m[1];
+    if ((m = text.match(/morde ancora: (.+?) sanguina/))) return m[1];
+    if ((m = text.match(/incide: (.+?) è avvelenato/))) return m[1];
     if ((m = text.match(/^(.+?) recupera \d+ (?:Vita|Timore) \(cura passiva\)\./))) return m[1];
     if ((m = text.match(/incalza il Timore di (.+?) per/))) return m[1];
     return null;
