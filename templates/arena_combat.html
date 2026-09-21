@@ -66,6 +66,8 @@
 
 {% if waiting %}
 <div style="text-align:center;opacity:0.8;font-style:italic;padding:0.6rem;font-family:'Cinzel',serif;color:var(--gold-light)">In attesa della mossa di {{ opp_state.name }}...</div>
+{% elif attesa_avversario %}
+<div style="text-align:center;opacity:0.8;font-style:italic;padding:0.6rem;font-family:'Cinzel',serif;color:var(--gold-light)">{{ opp_state.name }} non ha ancora visto l'esito dell'ultimo round — un attimo di pazienza prima di continuare.</div>
 {% endif %}
 
 {% if match.round == 1 and not waiting %}
@@ -120,6 +122,7 @@
   var oppName = {{ opp_state.name|tojson }};
   var isFirstView = {{ 'true' if (match.round == 1 and not waiting) else 'false' }};
   var waiting = {{ 'true' if waiting else 'false' }};
+  var attesaAvversario = {{ 'true' if attesa_avversario else 'false' }};
   var matchRound = {{ match.round }};
 
   var logEl = document.getElementById('combat-log-live');
@@ -290,7 +293,15 @@
           window.location.reload();
         }
       }).catch(function() {});
-    }, 3000);
+    }, 5000);
+  } else if (attesaAvversario) {
+    setInterval(function() {
+      fetch('/arena/match/{{ match.id }}/status?faction={{ faction|urlencode }}&name={{ name|urlencode }}').then(function(r) { return r.json(); }).then(function(data) {
+        if (data.opponent_viewed || data.status !== 'in_corso') {
+          window.location.reload();
+        }
+      }).catch(function() {});
+    }, 5000);
   }
 })();
 </script>
