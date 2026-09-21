@@ -570,7 +570,7 @@ def _apply_ability_action(run, ability_key):
         _set_cooldown(run, ability_key)
         combat["combat_dmg_bonus"] += 1
         combat["double_next_attack"] = True
-        log.append("Grido di Guerra: non attacchi questo turno, ma il tuo prossimo colpo sara' devastante (+1 Danno, danno doppio al prossimo attacco).")
+        log.append("Grido di Guerra: non attacchi questo turno, ma il tuo prossimo colpo sara' piu' forte (+1 Danno, +40% danno al prossimo attacco).")
         return 0, 0, log, False
 
     if ability_key == "fine_stratega":
@@ -862,12 +862,12 @@ def resolve_combat_round(run, action_key):
                 ab_log.append("Il Bastone Runico infonde ulteriore potere: +%d danno." % bonus_abilita)
 
     if not escape and dmg > 0 and run["combat"].get("double_next_attack"):
-        dmg *= 2
+        dmg = round(dmg * 1.4)
         run["combat"]["double_next_attack"] = False
         if ab_log is not None:
-            ab_log.append("Il fragore di Grido di Guerra raddoppia il colpo!")
+            ab_log.append("Il fragore di Grido di Guerra potenzia il colpo (+40%)!")
         else:
-            log.append("Il fragore di Grido di Guerra raddoppia il colpo!")
+            log.append("Il fragore di Grido di Guerra potenzia il colpo (+40%)!")
 
     if not escape and run["class"] == "Generale" and dmg > 0:
         if run["leader"]["pv"] < run["leader"]["pv_max"] * 0.5 or run["leader"]["timore"] < run["leader"]["timore_max"] * 0.5:
@@ -1770,6 +1770,11 @@ def _arena_take_action(actor, target, action_key, is_first, log, dmg_multiplier)
     if escape:
         log.append("%s abbandona il duello." % actor["name"])
         return "fuga"
+
+    if dmg > 0 and actor_status.get("double_next_attack"):
+        dmg = round(dmg * 1.4)
+        actor_status["double_next_attack"] = False
+        log.append("Il fragore di Grido di Guerra potenzia il colpo (+40%)!")
 
     # Sforzo Adrenalinico, variante arena: resta solo il critico, niente scudo iniziale
     if actor["class"] == "Esploratore" and (dmg > 0 or timore_dmg > 0) and random.random() < 0.10:

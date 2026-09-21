@@ -45,7 +45,7 @@ CLASSES = {
             {"key": "formazione_difensiva",    "lvl": 1, "name": "Formazione Difensiva",          "type": "supporto", "cd": 4, "desc": "+1 Armatura fino a fine combattimento; il prossimo colpo subito fa 3 danni in meno."},
             {"key": "doppio_colpo",            "lvl": 1, "name": "Doppio Colpo",                  "type": "danno",    "cd": 3, "desc": "Esegue due attacchi in un solo turno."},
             {"key": "vita_al_fronte",          "lvl": 3, "name": "Vita al Fronte",                "type": "supporto", "cd": 4, "desc": "Cura 1/4 della Vita massima."},
-            {"key": "grido_di_guerra",         "lvl": 5, "name": "Grido di Guerra",                "type": "supporto", "cd": 4, "desc": "Non attacchi questo turno; +1 Danno fino a fine combattimento e il prossimo attacco infligge danno doppio."},
+            {"key": "grido_di_guerra",         "lvl": 5, "name": "Grido di Guerra",                "type": "supporto", "cd": 4, "desc": "Non attacchi questo turno; +1 Danno fino a fine combattimento e il prossimo attacco infligge il 40% di danno in più."},
             {"key": "veterano_mille_battaglie","lvl": 7, "name": "Veterano di Mille Battaglie",    "type": "passiva",  "desc": "Sempre attiva: +2 Armatura e +2 Resistenza Mentale."},
             {"key": "fine_stratega",           "lvl": 9, "name": "Fine Stratega",                  "type": "supporto", "max_uses": 3, "desc": "Risana tutto il Seguito caduto e ottieni +1 casuale a Danno, Armatura o Resistenza Mentale (fino a 3 volte a run)."},
             {"key": "manovra_a_tenaglia",      "lvl": 10,"name": "Manovra a Tenaglia",             "type": "danno",    "once": True, "desc": "Sacrifichi tutto il Seguito rimasto: 8-10 danni al nemico per ogni truppa sacrificata."},
