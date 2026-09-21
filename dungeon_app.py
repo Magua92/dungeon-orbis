@@ -500,16 +500,21 @@ def combat_act():
         run["log"] = run.get("log", []) + loot_log
         if item_id:
             run.setdefault("pending_drops", []).append(item_id)
-        run["combat"] = None
         if is_boss:
             run["finished"] = True
             run["result"] = "vittoria"
-            session["run"] = run
-            return redirect(url_for("run_end"))
-        run["room_index"] += 1
+        else:
+            run["room_index"] += 1
+        # run["combat"] resta popolato apposta: serve a questo render finale per
+        # mostrare ancora nome/icona/barre (a 0) del nemico appena sconfitto. Viene
+        # svuotato solo nella pagina successiva (room_result o run_end).
         session["run"] = run
-        return render_template("room_result.html", run=run, log=run["log"], room_finished=True,
-                                sound_cues=sound_cues_from_log(run["log"]))
+        # Come per la sconfitta: non si salta subito alla schermata successiva, si
+        # rimostra combat.html un'ultima volta (colpo mortale + bottino nel log),
+        # poi il JS reindirizza da solo a fine sequenza.
+        return render_template("combat.html", run=run, actions=[], is_boss=is_boss,
+                                enemy_portrait_url=_monster_portrait_url(run["combat"]["name"]),
+                                victory_pending=True)
 
     if esito == "fuga":
         engine.cleanup_temp_mercenaries(run)
@@ -539,6 +544,22 @@ def combat_act():
 
     session["run"] = run
     return redirect(url_for("combat"))
+
+
+@app.route("/room_result")
+def room_result_view():
+    """Pagina di destinazione dopo il render finale di combat.html (victory_pending):
+    il combattimento vero e proprio e' gia' stato deciso e salvato in sessione da
+    combat_act, qui si svuota run['combat'] (non piu' necessario) e si mostra il
+    riepilogo — stesso identico contenuto che prima veniva renderizzato subito,
+    solo posticipato di un passaggio per lasciare vedere l'ultimo round."""
+    run = _run()
+    if not run:
+        return redirect(url_for("home"))
+    run["combat"] = None
+    session["run"] = run
+    return render_template("room_result.html", run=run, log=run.get("log", []), room_finished=True,
+                            sound_cues=sound_cues_from_log(run.get("log", [])))
 
 
 @app.route("/miniboss")
