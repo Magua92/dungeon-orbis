@@ -1,6 +1,23 @@
 {% extends "base.html" %}
 {% block content %}
-{% macro status_panel(state, label) %}
+<style>
+@keyframes lungeRight { 0%{transform:translateX(0)} 40%{transform:translateX(18px)} 100%{transform:translateX(0)} }
+@keyframes lungeLeft { 0%{transform:translateX(0)} 40%{transform:translateX(-18px)} 100%{transform:translateX(0)} }
+@keyframes shakeStage { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
+@keyframes floatUp { 0%{transform:translate(-50%,0);opacity:1} 100%{transform:translate(-50%,-42px);opacity:0} }
+@keyframes logIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:translateY(0)} }
+.lunge-right{animation:lungeRight 0.32s ease-out}
+.lunge-left{animation:lungeLeft 0.32s ease-out}
+.shake{animation:shakeStage 0.35s ease-in-out}
+.floating-num{position:absolute;left:50%;top:-6px;font-family:'Cinzel',serif;font-weight:bold;font-size:1.15rem;text-shadow:0 1px 3px #000;pointer-events:none;animation:floatUp 0.9s ease-out forwards;z-index:5;white-space:nowrap}
+.floating-num.dmg{color:#e05a5a}
+.floating-num.timore-dmg{color:#b98af0}
+.floating-num.heal{color:#5ad07a}
+.bar-fill{transition:width 0.35s ease-out}
+.combat-log > div{animation:logIn 0.22s ease-out;transition:background-color 1.1s ease-out;border-radius:3px}
+.combat-log > div.log-new{background-color:rgba(255,255,255,0.09)}
+</style>
+{% macro status_panel(state, label, bar_prefix) %}
 <div class="panel-box">
   <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.6rem">
     {% if state.portrait_url %}<img src="{{ state.portrait_url }}" alt="" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:1px solid var(--border);flex-shrink:0">{% endif %}
@@ -10,9 +27,9 @@
     </div>
   </div>
   <div class="bar-label"><span>❤️ Vita</span><span>{{ state.leader.pv }} / {{ state.leader.pv_max }}</span></div>
-  <div class="bar-track"><div class="bar-fill pv" style="width:{{ (state.leader.pv / state.leader.pv_max * 100) | round | int if state.leader.pv > 0 else 0 }}%"></div></div>
+  <div class="bar-track"><div id="{{ bar_prefix }}-pv-bar" class="bar-fill pv" style="width:{{ (state.leader.pv / state.leader.pv_max * 100) | round | int if state.leader.pv > 0 else 0 }}%"></div></div>
   <div class="bar-label" style="margin-top:0.4rem"><span>😰 Timore</span><span>{{ state.leader.timore }} / {{ state.leader.timore_max }}</span></div>
-  <div class="bar-track"><div class="bar-fill timore" style="width:{{ (state.leader.timore / state.leader.timore_max * 100) | round | int if state.leader.timore > 0 else 0 }}%"></div></div>
+  <div class="bar-track"><div id="{{ bar_prefix }}-timore-bar" class="bar-fill timore" style="width:{{ (state.leader.timore / state.leader.timore_max * 100) | round | int if state.leader.timore > 0 else 0 }}%"></div></div>
   <div style="display:flex;gap:0.6rem;margin-top:0.5rem;flex-wrap:wrap;font-size:0.75rem">
     <span>🛡️ Armatura: {{ state.leader.armor + state.temp_buffs.armor + state.arena_status.combat_armor_bonus }}</span>
     <span>🧠 Res. Mentale: {{ state.leader.mres + state.temp_buffs.mres + state.arena_status.combat_mres_bonus }}</span>
@@ -46,8 +63,8 @@
 
 <h2 style="text-align:center">⚔️ Duello — Round {{ match.round }}</h2>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem;margin-bottom:0.8rem">
-  {{ status_panel(my_state, "tu") }}
-  {{ status_panel(opp_state, "avversario") }}
+  {{ status_panel(my_state, "tu", "my") }}
+  {{ status_panel(opp_state, "avversario", "opp") }}
 </div>
 
 <div id="duel-stage" style="position:relative;display:flex;justify-content:center;align-items:center;gap:4rem;height:100px;margin-bottom:0.8rem">
@@ -131,6 +148,146 @@
   var sword = document.getElementById('duel-sword');
   var stage = document.getElementById('duel-stage');
   var actionButtons = document.querySelectorAll('#action-buttons button[type=submit]');
+
+  var myPvBar = document.getElementById('my-pv-bar');
+  var myTimoreBar = document.getElementById('my-timore-bar');
+  var oppPvBar = document.getElementById('opp-pv-bar');
+  var oppTimoreBar = document.getElementById('opp-timore-bar');
+  var myPvMax = {{ my_state.leader.pv_max }};
+  var myTimoreMax = {{ my_state.leader.timore_max }};
+  var myPvTarget = {{ my_state.leader.pv }};
+  var myTimoreTarget = {{ my_state.leader.timore }};
+  var oppPvMax = {{ opp_state.leader.pv_max }};
+  var oppTimoreMax = {{ opp_state.leader.timore_max }};
+  var oppPvTarget = {{ opp_state.leader.pv }};
+  var oppTimoreTarget = {{ opp_state.leader.timore }};
+
+  function sideOf(name) {
+    if (name === myName) return 'my';
+    if (name === oppName) return 'opp';
+    return null;
+  }
+
+  // Estrae gli effetti numerici (danno/cura, con il nome reale del bersaglio) dalle
+  // righe di log dell'arena, basandosi sulle stringhe esatte di engine.py. A
+  // differenza del PvE, qui il danno "subisce"/"scende di" e' gia' il valore finale
+  // post-mitigazione, quindi non serve dedurlo dal testo dell'abilita'. Se una riga
+  // non combacia con nessun pattern, semplicemente non produce alcun effetto: non e'
+  // mai bloccante, solo estetico (vedi rete di sicurezza a fine sequenza).
+  function parseArenaEffects(text) {
+    var m;
+    if ((m = text.match(/^(.+?) subisce (\d+) danni fisici\./))) return [{ side: sideOf(m[1]), field: 'pv', delta: -parseInt(m[2], 10) }];
+    if ((m = text.match(/^Il Timore di (.+?) scende di (\d+)\./))) return [{ side: sideOf(m[1]), field: 'timore', delta: -parseInt(m[2], 10) }];
+    if ((m = text.match(/^L'armatura di (.+?) riflette (\d+) danni su (.+?)\./))) return [{ side: sideOf(m[3]), field: 'pv', delta: -parseInt(m[2], 10) }];
+    if ((m = text.match(/^Le fiamme infliggono (\d+) danni a (.+?)\./))) return [{ side: sideOf(m[2]), field: 'pv', delta: -parseInt(m[1], 10) }];
+    if ((m = text.match(/^(.+?) recupera (\d+) Vita \(cura passiva\)\./))) return [{ side: sideOf(m[1]), field: 'pv', delta: parseInt(m[2], 10) }];
+    if ((m = text.match(/^(.+?) recupera (\d+) Timore \(cura passiva\)\./))) return [{ side: sideOf(m[1]), field: 'timore', delta: parseInt(m[2], 10) }];
+    if ((m = text.match(/^I Compagni del Martello di (.+?) colpiscono (.+?) per (\d+) danni\./))) return [{ side: sideOf(m[2]), field: 'pv', delta: -parseInt(m[3], 10) }];
+    if ((m = text.match(/^L'Ariete di (.+?) incalza il Timore di (.+?) per (\d+) danni\./))) return [{ side: sideOf(m[2]), field: 'timore', delta: -parseInt(m[3], 10) }];
+    return [];
+  }
+
+  function setBarWidth(barEl, value, max) {
+    if (!barEl || !max) return;
+    var pct = Math.max(0, Math.min(100, Math.round(value / max * 100)));
+    barEl.style.width = pct + '%';
+  }
+
+  var myPvNow = myPvTarget, myTimoreNow = myTimoreTarget;
+  var oppPvNow = oppPvTarget, oppTimoreNow = oppTimoreTarget;
+  var barOf = {}, maxOf = {}, nowRef = {};
+  try {
+    barOf = { my_pv: myPvBar, my_timore: myTimoreBar, opp_pv: oppPvBar, opp_timore: oppTimoreBar };
+    maxOf = { my_pv: myPvMax, my_timore: myTimoreMax, opp_pv: oppPvMax, opp_timore: oppTimoreMax };
+    // Ricostruisce il valore "di partenza" delle barre sommando gli effetti letti da
+    // questo round, cosi' possono muoversi in sincrono col log invece di comparire
+    // gia' al valore finale. Se la somma non torna perfettamente, non importa: a fine
+    // sequenza scatta lo snap di sicurezza sui valori esatti inviati dal server.
+    var totals = { my_pv: 0, my_timore: 0, opp_pv: 0, opp_timore: 0 };
+    lines.forEach(function(line) {
+      parseArenaEffects(line).forEach(function(eff) {
+        if (!eff.side) return;
+        totals[eff.side + '_' + eff.field] += eff.delta;
+      });
+    });
+    myPvNow = Math.max(0, Math.min(myPvMax, myPvTarget - totals.my_pv));
+    myTimoreNow = Math.max(0, Math.min(myTimoreMax, myTimoreTarget - totals.my_timore));
+    oppPvNow = Math.max(0, Math.min(oppPvMax, oppPvTarget - totals.opp_pv));
+    oppTimoreNow = Math.max(0, Math.min(oppTimoreMax, oppTimoreTarget - totals.opp_timore));
+    nowRef = { my_pv: myPvNow, my_timore: myTimoreNow, opp_pv: oppPvNow, opp_timore: oppTimoreNow };
+    Object.keys(barOf).forEach(function(k) { if (barOf[k]) { barOf[k].style.transition = 'none'; setBarWidth(barOf[k], nowRef[k], maxOf[k]); } });
+    requestAnimationFrame(function() {
+      Object.keys(barOf).forEach(function(k) { if (barOf[k]) barOf[k].style.transition = ''; });
+    });
+  } catch (e) { /* nessun impatto sul combattimento se il parsing fallisce */ }
+
+  function floatNumber(target, text, cls) {
+    try {
+      if (!target || !stage) return;
+      var stageRect = stage.getBoundingClientRect();
+      var tRect = target.getBoundingClientRect();
+      var x = tRect.left + target.offsetWidth / 2 - stageRect.left;
+      var el = document.createElement('div');
+      el.className = 'floating-num ' + cls;
+      el.style.left = x + 'px';
+      el.textContent = text;
+      stage.appendChild(el);
+      setTimeout(function() { el.remove(); }, 950);
+    } catch (e) {}
+  }
+
+  // Applica alla scena (barre + numeri floating) gli effetti letti da una riga di
+  // log, indipendentemente dal "cue" sonoro — cosi' anche eventi passivi senza suono
+  // dedicato (es. cura passiva, Compagni del Martello) restano comunque visibili.
+  function applyArenaEffects(text) {
+    try {
+      parseArenaEffects(text).forEach(function(eff) {
+        if (!eff.side) return;
+        var key = eff.side + '_' + eff.field;
+        var el = eff.side === 'my' ? player : enemy;
+        if (eff.field === 'pv') {
+          var pvNow = (eff.side === 'my' ? myPvNow : oppPvNow) + eff.delta;
+          pvNow = Math.max(0, Math.min(maxOf[key], pvNow));
+          if (eff.side === 'my') myPvNow = pvNow; else oppPvNow = pvNow;
+          setBarWidth(barOf[key], pvNow, maxOf[key]);
+        } else {
+          var tNow = (eff.side === 'my' ? myTimoreNow : oppTimoreNow) + eff.delta;
+          tNow = Math.max(0, Math.min(maxOf[key], tNow));
+          if (eff.side === 'my') myTimoreNow = tNow; else oppTimoreNow = tNow;
+          setBarWidth(barOf[key], tNow, maxOf[key]);
+        }
+        var sign = eff.delta >= 0 ? '+' : '-';
+        var label = sign + Math.abs(eff.delta) + (eff.field === 'timore' ? ' 😰' : '');
+        var cls = eff.delta >= 0 ? 'heal' : (eff.field === 'timore' ? 'timore-dmg' : 'dmg');
+        floatNumber(el, label, cls);
+      });
+    } catch (e) {}
+  }
+
+  function lunge(el, dir) {
+    try {
+      if (!el) return;
+      el.classList.remove('lunge-right', 'lunge-left');
+      void el.offsetWidth;
+      el.classList.add(dir === 'right' ? 'lunge-right' : 'lunge-left');
+    } catch (e) {}
+  }
+
+  function shakeStage() {
+    try {
+      if (!stage) return;
+      stage.classList.remove('shake');
+      void stage.offsetWidth;
+      stage.classList.add('shake');
+    } catch (e) {}
+  }
+
+  function lineIcon(cue) {
+    if (cue === 'combat' || cue === 'doppio_colpo') return '⚔️ ';
+    if (cue === 'shield') return '🛡️ ';
+    if (cue === 'heal') return '✨ ';
+    return '';
+  }
 
   function flash(el) {
     if (!el) return;
@@ -224,10 +381,15 @@
     for (var i = 0; i < events.length; i++) {
       var ev = events[i];
       var div = document.createElement('div');
-      div.textContent = ev.text;
-      if (/recuperi|recupera|ti infonde/.test(ev.text)) div.className = 'log-heal';
+      var isHeal = /recuperi|recupera|ti infonde/.test(ev.text);
+      div.textContent = lineIcon(isHeal ? 'heal' : ev.cue) + ev.text;
+      div.className = (isHeal ? 'log-heal ' : '') + 'log-new';
       logEl.appendChild(div);
       logEl.scrollTop = logEl.scrollHeight;
+      setTimeout((function(d) { return function() { d.classList.remove('log-new'); }; })(div), 60);
+
+      if (/critico/i.test(ev.text)) shakeStage();
+      applyArenaEffects(ev.text);
 
       if (!ev.cue) { await wait(350); continue; }
       var toIsMe = ev.to === myName;
@@ -235,6 +397,7 @@
       var sourceEl = toIsMe ? enemy : player;
 
       if (ev.cue === 'combat' || ev.cue === 'doppio_colpo') {
+        lunge(sourceEl, sourceEl === player ? 'right' : 'left');
         swing(sourceEl, targetEl);
         await playCue(ev.cue === 'doppio_colpo' ? 'doppio_colpo' : (toIsMe ? 'hit_taken' : 'hit_dealt'));
       } else {
@@ -242,6 +405,14 @@
         await playCue(ev.cue);
       }
     }
+    // Rete di sicurezza: qualunque scarto accumulato dal parsing best-effort viene
+    // azzerato riportando tutte le barre all'esatto valore inviato dal server.
+    try {
+      setBarWidth(myPvBar, myPvTarget, myPvMax);
+      setBarWidth(myTimoreBar, myTimoreTarget, myTimoreMax);
+      setBarWidth(oppPvBar, oppPvTarget, oppPvMax);
+      setBarWidth(oppTimoreBar, oppTimoreTarget, oppTimoreMax);
+    } catch (e) {}
   }
 
   function runSequence() {
