@@ -1668,6 +1668,8 @@ def _fresh_arena_status():
         "evasion_turns": 0, "evasion_chance": 0.0,
         "stunned": 0, "slowed_turns": 0, "weaken_turns": 0, "weaken_amount": 0,
         "burn_turns": 0, "burn_dmg": 0,
+        "bleed_turns": 0, "bleed_dmg": 0, "bleed_kind": None,
+        "egida_triggered": False,
     }
 
 
@@ -1714,11 +1716,30 @@ def _arena_unshim_combat(actor_status, target_status):
 def _arena_effective_defense(combatant, status, stat):
     """Equivalente di _effective_defense per un combattente dell'arena."""
     base = combatant["leader"][stat] + combatant["temp_buffs"][stat] + status.get("combat_%s_bonus" % stat, 0)
-    if stat == "armor" and combatant.get("equip_flags", {}).get("raddoppio_sotto_quarto") \
-            and combatant["leader"]["pv_max"] > 0 \
-            and combatant["leader"]["pv"] < combatant["leader"]["pv_max"] * gd.RADDOPPIO_SOTTO_QUARTO_SOGLIA:
-        base *= 2
     return max(0, base)
+
+
+def _arena_check_egida_trigger(state, status, log):
+    """Equivalente arena di _check_egida_trigger: ogni lato controlla la propria
+    Vita indipendentemente."""
+    bonus = state.get("equip_flags", {}).get("bonus_armor_sotto_quarto", 0)
+    if not bonus or status.get("egida_triggered"):
+        return
+    if state["leader"]["pv_max"] > 0 and state["leader"]["pv"] < state["leader"]["pv_max"] * gd.RADDOPPIO_SOTTO_QUARTO_SOGLIA:
+        status["egida_triggered"] = True
+        status["combat_armor_bonus"] = status.get("combat_armor_bonus", 0) + bonus
+        log.append("L'Egida dell'Ultimo Bastione di %s risponde al pericolo: +%d Armatura per il resto del duello." % (state["name"], bonus))
+
+
+def _arena_maybe_reflect_fixed(actor, target, log):
+    """Equivalente arena di _maybe_reflect_fixed: l'Armatura del Sigillo Infranto del
+    BERSAGLIO riflette danno fisso sull'ATTACCANTE."""
+    flags = target.get("equip_flags", {})
+    chance = flags.get("riflette_chance", 0)
+    amount = flags.get("riflette_fisso", 0)
+    if chance and amount and random.random() < chance:
+        actor["leader"]["pv"] -= amount
+        log.append("L'armatura di %s riflette %d danni su %s." % (target["name"], amount, actor["name"]))
 
 
 def _arena_apply_damage(actor, target, target_status, dmg, timore_dmg, log):
@@ -1774,15 +1795,37 @@ def _arena_apply_damage(actor, target, target_status, dmg, timore_dmg, log):
                 target_status["shield_physical_pool"] -= assorbito
                 log.append("Lo scudo magico di %s assorbe %d danni fisici." % (target["name"], assorbito))
             final_armor = 0 if ignora_difese else _arena_effective_defense(target, target_status, "armor")
+            penetrazione = flags.get("penetrazione_armor", 0)
+            if penetrazione:
+                final_armor = max(0, final_armor - penetrazione)
             dmg_to_target = max(1, residuo - final_armor) if residuo > 0 else 0
             if dmg_to_target > 0:
                 target["leader"]["pv"] -= dmg_to_target
                 log.append("%s subisce %d danni fisici." % (target["name"], dmg_to_target))
-                riflette_pct = target.get("equip_flags", {}).get("riflette_pct", 0)
-                if riflette_pct:
-                    reflected = max(1, round(dmg_to_target * riflette_pct))
-                    actor["leader"]["pv"] -= reflected
-                    log.append("L'armatura di %s riflette %d danni su %s." % (target["name"], reflected, actor["name"]))
+                _arena_maybe_reflect_fixed(actor, target, log)
+
+                proc_kind = "sanguinamento" if flags.get("sanguinamento_su_colpo") else ("veleno" if flags.get("veleno_su_colpo") else None)
+                if proc_kind and target_status.get("bleed_turns", 0) <= 0 and random.random() < gd.ITEM_ENEMY_DOT_CHANCE:
+                    if proc_kind == "sanguinamento" and target.get("equip_flags", {}).get("immunita_sanguinamento"):
+                        log.append("L'Elmo del Primo Re di Karag-Duraz protegge %s dalla ferita: non sanguina." % target["name"])
+                    else:
+                        bleed_dmg = random.randint(*gd.ITEM_ENEMY_DOT_DMG)
+                        target_status["bleed_turns"] = gd.ITEM_ENEMY_DOT_TURNS
+                        target_status["bleed_dmg"] = bleed_dmg
+                        target_status["bleed_kind"] = proc_kind
+                        if proc_kind == "veleno":
+                            log.append("Il Plettro del Destino incide: %s è avvelenato, perderà %d PV a turno per %d turni." %
+                                        (target["name"], bleed_dmg, gd.ITEM_ENEMY_DOT_TURNS))
+                        else:
+                            log.append("La Zanna dell'Uomorsomaiale morde ancora: %s sanguina, perdendo %d PV a turno per %d turni." %
+                                        (target["name"], bleed_dmg, gd.ITEM_ENEMY_DOT_TURNS))
+
+                shield_chance = flags.get("shield_pv_su_colpo_chance", 0)
+                shield_amount = flags.get("shield_pv_su_colpo_amount", 0)
+                if shield_chance and shield_amount and random.random() < shield_chance:
+                    actor_status = actor.get("arena_status", {})
+                    actor_status["shield_physical_pool"] = actor_status.get("shield_physical_pool", 0) + shield_amount
+                    log.append("Lo Spadone Lungo di Ser Gowain di %s vibra: guadagna %d scudo Vita." % (actor["name"], shield_amount))
 
     total_timore_dmg = timore_dmg + bonus_timore + crit_bonus_timore
     if total_timore_dmg > 0:
@@ -1932,6 +1975,17 @@ def resolve_arena_round(state_a, state_b, action_a, action_b, dmg_multiplier=Non
             side_state["leader"]["pv"] -= burn_dmg
             log.append("Le fiamme infliggono %d danni a %s." % (burn_dmg, side_state["name"]))
             side_status["burn_turns"] -= 1
+        if side_status.get("bleed_turns", 0) > 0:
+            bleed_dmg = side_status.get("bleed_dmg", 0)
+            kind = side_status.get("bleed_kind") or "sanguinamento"
+            if kind == "veleno":
+                log.append("Il veleno in %s si diffonde: perde %d PV." % (side_state["name"], bleed_dmg))
+            else:
+                log.append("Il sanguinamento di %s si aggrava: perde %d PV." % (side_state["name"], bleed_dmg))
+            side_state["leader"]["pv"] -= bleed_dmg
+            side_status["bleed_turns"] -= 1
+            if side_status["bleed_turns"] <= 0:
+                side_status["bleed_kind"] = None
         if side_status.get("weaken_turns", 0) > 0:
             side_status["weaken_turns"] -= 1
         if side_status.get("slowed_turns", 0) > 0:
@@ -1990,5 +2044,8 @@ def resolve_arena_round(state_a, state_b, action_a, action_b, dmg_multiplier=Non
         esito = _arena_check_victory(state_a, state_b)
         if esito:
             return esito, log
+
+    _arena_check_egida_trigger(state_a, status_a, log)
+    _arena_check_egida_trigger(state_b, status_b, log)
 
     return "in_corso", log
