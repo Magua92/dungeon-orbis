@@ -116,6 +116,12 @@
     var m;
 
     // Danno del giocatore/Seguito al nemico
+    m = text.match(/il nemico sanguina, perdendo (\d+) PV/) || text.match(/del nemico si aggrava: perde (\d+) PV/);
+    if (m) {
+      e.enemyPvDmg += parseInt(m[1], 10);
+    } else if ((m = text.match(/il nemico è avvelenato, perderà (\d+) PV/) || text.match(/nel nemico si diffonde: perde (\d+) PV/))) {
+      e.enemyPvDmg += parseInt(m[1], 10);
+    } else {
     m = text.match(/(\d+)\s*danni fisici e (\d+)\s*(?:al )?Timore del nemico/);
     if (m) {
       e.enemyPvDmg += parseInt(m[1], 10);
@@ -150,6 +156,7 @@
           }
         }
       }
+    }
     }
 
     // Cura del nemico su se stesso (es. "Il Diaulo si riprende, recuperando 8 PV.")
@@ -296,6 +303,12 @@
     if (/sei avvelenato|veleno bevuto in precedenza si manifesta/.test(text)) return 'poison_applied';
     if (/ti ferisce in profondità: sanguini/.test(text)) return 'bleed_applied';
     if (/^Il sanguinamento |^Il veleno /.test(text)) return null;
+    // Speculare: quando e' il GIOCATORE a infliggere sanguinamento/veleno al nemico
+    // (Zanna dell'Uomorsomaiale, Plettro del Destino). Stesso principio: suono solo
+    // sul lancio, il tick ricorrente resta silenzioso.
+    if (/il nemico sanguina/.test(text)) return 'enemy_bleed_applied';
+    if (/il nemico è avvelenato/.test(text)) return 'enemy_poison_applied';
+    if (/del nemico si aggrava|nel nemico si diffonde/.test(text)) return null;
     if (/^Doppio Colpo:/.test(text)) return 'doppio_colpo';
     if (/^Formazione Difensiva:|^Pontifex Maximus:/.test(text)) return 'buff_difesa';
     // la cura del nemico su se stesso ("Nome si riprende, recuperando...") va
@@ -325,6 +338,8 @@
     if (cue === 'hit_dealt' || cue === 'doppio_colpo') return '⚔️ ';
     if (cue === 'hit_taken') return '💥 ';
     if (cue === 'shield') return '🛡️ ';
+    if (cue === 'enemy_bleed_applied') return '🩸 ';
+    if (cue === 'enemy_poison_applied') return '☠️ ';
     return '';
   }
 
@@ -387,6 +402,7 @@
       else if (cue === 'uomorsomaiale_base' || cue === 'uomorsomaiale_sventrare') { lunge(enemy, 'left'); swing(enemy, player); }
       else if (cue === 'uomorsomaiale_ruggito') { flash(player); }
       else if (cue === 'bleed_applied' || cue === 'poison_applied') { lunge(enemy, 'left'); swing(enemy, player); }
+      else if (cue === 'enemy_bleed_applied' || cue === 'enemy_poison_applied') { lunge(player, 'right'); swing(player, enemy); }
       else if (cue === 'shield') { flash(player); }
 
       if (!cue) { setTimeout(finish, 350); return; }
