@@ -73,6 +73,8 @@ def init_db():
             state_b TEXT,                  -- stato di combattimento del lato B, JSON (NULL finche' B non si prepara)
             pending_action_a TEXT,         -- mossa scelta da A per il round corrente, in attesa di B
             pending_action_b TEXT,         -- mossa scelta da B per il round corrente, in attesa di A
+            viewed_round_a INTEGER NOT NULL DEFAULT 0,  -- ultimo round che A ha effettivamente caricato/visto
+            viewed_round_b INTEGER NOT NULL DEFAULT 0,  -- ultimo round che B ha effettivamente caricato/visto
             log TEXT,                      -- righe dell'ultimo round risolto, JSON
             winner TEXT,                   -- 'a' | 'b' | 'pareggio', solo se status='concluso'
             created_at TEXT NOT NULL,
@@ -89,6 +91,10 @@ def init_db():
     if "pending_action_a" not in arena_cols:
         conn.execute("ALTER TABLE arena_matches ADD COLUMN pending_action_a TEXT")
         conn.execute("ALTER TABLE arena_matches ADD COLUMN pending_action_b TEXT")
+        conn.commit()
+    if "viewed_round_a" not in arena_cols:
+        conn.execute("ALTER TABLE arena_matches ADD COLUMN viewed_round_a INTEGER NOT NULL DEFAULT 0")
+        conn.execute("ALTER TABLE arena_matches ADD COLUMN viewed_round_b INTEGER NOT NULL DEFAULT 0")
         conn.commit()
     conn.close()
 

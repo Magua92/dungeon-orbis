@@ -943,11 +943,15 @@ def arena_match(match_id):
                                 CLASS_PASSIVES=gd.CLASS_PASSIVES, ENTOURAGE_TYPES=gd.ENTOURAGE_TYPES)
 
     my_pending = match.get("pending_action_%s" % side)
+    if match.get("viewed_round_%s" % side, 0) < match["round"]:
+        db.update_arena_match(match_id, datetime.datetime.utcnow().isoformat(),
+                               **{"viewed_round_%s" % side: match["round"]})
     actions = engine.arena_available_actions(my_state)
     return render_template(
         "arena_combat.html", match=match, faction=faction, name=name, side=side,
         my_state=my_state, opp_state=opp_state, actions=actions, waiting=bool(my_pending),
         CLASS_PASSIVES=gd.CLASS_PASSIVES, ENTOURAGE_TYPES=gd.ENTOURAGE_TYPES,
+        attesa_avversario=request.args.get("attesa_avversario") == "1",
     )
 
 
@@ -965,13 +969,19 @@ def arena_match_act(match_id):
     if match.get("pending_action_%s" % side):
         return redirect(url_for("arena_match", match_id=match_id, faction=faction, name=name))
 
+    other_side = "b" if side == "a" else "a"
+    if match["round"] > 1 and match.get("viewed_round_%s" % other_side, 0) < match["round"]:
+        # l'avversario non ha ancora caricato la schermata di questo round: lo si
+        # lascia recuperare invece di lasciar correre avanti chi e' piu' rapido,
+        # altrimenti i due schermi finiscono per raccontare round diversi.
+        return redirect(url_for("arena_match", match_id=match_id, faction=faction, name=name, attesa_avversario=1))
+
     my_state = match["state_%s" % side]
     valid_keys = {a["key"] for a in engine.arena_available_actions(my_state) if a["available"]}
     if action_key not in valid_keys:
         return redirect(url_for("arena_match", match_id=match_id, faction=faction, name=name))
 
     timestamp = datetime.datetime.utcnow().isoformat()
-    other_side = "b" if side == "a" else "a"
     other_pending = match.get("pending_action_%s" % other_side)
 
     if not other_pending:
@@ -1020,7 +1030,15 @@ def arena_match_status(match_id):
     match = db.get_arena_match(match_id)
     if not match:
         return {"error": "not_found"}, 404
-    return {"status": match["status"], "round": match["round"], "updated_at": match["updated_at"]}
+    faction = request.args.get("faction")
+    name = request.args.get("name")
+    opponent_viewed = None
+    side = _arena_side(match, faction, name) if faction and name else None
+    if side:
+        other_side = "b" if side == "a" else "a"
+        opponent_viewed = match.get("viewed_round_%s" % other_side, 0) >= match["round"]
+    return {"status": match["status"], "round": match["round"], "updated_at": match["updated_at"],
+            "opponent_viewed": opponent_viewed}
 
 
 if __name__ == "__main__":
