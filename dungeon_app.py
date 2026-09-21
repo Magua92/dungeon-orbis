@@ -316,6 +316,8 @@ def start_run():
     for item_id, expected_slot in ((slot_arma, "arma"), (slot_armatura, "armatura"), (slot_jolly, None)):
         if not item_id or item_id not in gd.ITEMS:
             continue
+        if item_id in equip_ids:
+            continue  # stesso oggetto gia' scelto in uno slot precedente: non puo' occupare due slot
         consentito = item_id in owned_ids or (has_strumenti and gd.ITEMS[item_id]["rarity"] == "base")
         if consentito and (expected_slot is None or gd.ITEMS[item_id]["slot"] == expected_slot):
             equip_ids.append(item_id)
@@ -819,6 +821,8 @@ def _build_arena_state_from_form(faction, name, char):
     for item_id, expected_slot in ((slot_arma, "arma"), (slot_armatura, "armatura"), (slot_jolly, None)):
         if not item_id or item_id not in gd.ITEMS:
             continue
+        if item_id in equip_ids:
+            continue  # stesso oggetto gia' scelto in uno slot precedente: non puo' occupare due slot
         consentito = item_id in owned_ids or (has_strumenti and gd.ITEMS[item_id]["rarity"] == "base")
         if consentito and (expected_slot is None or gd.ITEMS[item_id]["slot"] == expected_slot):
             equip_ids.append(item_id)

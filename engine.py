@@ -46,9 +46,11 @@ def new_run_state(faction, name, char_class, level, entourage_types, equip_item_
     dmg_bonus = 0
     iniziativa_bonus = 0
     flags = {}
+    seen_items = set()
     for item_id in equip_item_ids:
-        if not item_id:
+        if not item_id or item_id in seen_items:
             continue
+        seen_items.add(item_id)
         eff = gd.ITEMS[item_id]["effects"]
         armor += eff.get("armor", 0)
         mres += eff.get("mres", 0)
