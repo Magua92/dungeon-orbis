@@ -566,20 +566,33 @@ def format_item_effects(effects):
         parts.append("%+d danno quando usi un'abilità" % effects["dmg_abilita"])
     if effects.get("stordisce_pct"):
         parts.append("%d%% di stordire per 1 turno il nemico colpito" % round(effects["stordisce_pct"] * 100))
-    if effects.get("ignora_difese_pct"):
-        parts.append("%d%% di ignorare del tutto l'Armatura nemica sul colpo" % round(effects["ignora_difese_pct"] * 100))
+    if effects.get("penetrazione_armor"):
+        pa = effects["penetrazione_armor"]
+        parts.append("ignora %d punt%s di Armatura nemica a ogni colpo" % (pa, "o" if pa == 1 else "i"))
     if effects.get("dmg_timore_nemico"):
         parts.append("+%d danno al Timore nemico a ogni colpo fisico" % effects["dmg_timore_nemico"])
     if effects.get("critico_colpisce_timore"):
         parts.append("%d%% di colpo critico (danno raddoppiato) che colpisce anche il Timore nemico" % round(ITEM_CRIT_CHANCE * 100))
-    if effects.get("riflette_pct"):
-        parts.append("riflette il %d%% dei danni fisici subiti sul nemico" % round(effects["riflette_pct"] * 100))
-    if effects.get("raddoppio_sotto_quarto"):
-        parts.append("raddoppia l'Armatura quando sei sotto 1/4 di Vita")
+    if effects.get("riflette_chance") and effects.get("riflette_fisso"):
+        parts.append("%d%% di riflettere %d danni sul nemico quando subisci un colpo fisico" %
+                      (round(effects["riflette_chance"] * 100), effects["riflette_fisso"]))
+    if effects.get("bonus_armor_sotto_quarto"):
+        parts.append("+%d Armatura per il resto del combattimento la prima volta che scendi sotto 1/4 di Vita" % effects["bonus_armor_sotto_quarto"])
     if effects.get("immunita_primo_pauroso"):
         parts.append("annulla il primo attacco che colpirebbe il Timore in ogni combattimento")
+    if effects.get("immunita_sanguinamento"):
+        parts.append("immune al sanguinamento (non al veleno)")
+    if effects.get("sanguinamento_su_colpo"):
+        parts.append("%d%% di infliggere sanguinamento al nemico a ogni colpo andato a segno" % round(ITEM_ENEMY_DOT_CHANCE * 100))
+    if effects.get("veleno_su_colpo"):
+        parts.append("%d%% di infliggere avvelenamento al nemico a ogni colpo andato a segno" % round(ITEM_ENEMY_DOT_CHANCE * 100))
+    if effects.get("shield_pv_su_colpo_chance") and effects.get("shield_pv_su_colpo_amount"):
+        parts.append("%d%% di ottenere %d scudo Vita quando colpisci il nemico" %
+                      (round(effects["shield_pv_su_colpo_chance"] * 100), effects["shield_pv_su_colpo_amount"]))
     if effects.get("negoziazione_pct"):
         parts.append("-%d%% al costo di Forgia e Mercenario" % round(effects["negoziazione_pct"] * 100))
+    if effects.get("xp_bonus_pct"):
+        parts.append("+%d%% Esperienza ottenuta a fine spedizione" % round(effects["xp_bonus_pct"] * 100))
     return ", ".join(parts) if parts else "Nessun effetto meccanico attivo al momento"
 
 # ─── RIEPILOGO DISCORD (embed narrativo a fine spedizione) ──────────────────
