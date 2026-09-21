@@ -313,6 +313,7 @@ def start_combat(run, tier):
     run["cooldowns"] = {}  # i cooldown si resettano a ogni nuovo combattimento, non durano tutta la run
     run["combat"] = {
         "tier": tier, "name": name, "icon": icon, "archetype": archetype, "special_boss": special_boss,
+        "dot_kind": gd.MONSTER_DOT_KIND.get(name, "sanguinamento"),
         "enemy_armor": enemy_armor, "enemy_mres": enemy_mres,
         "enemy_pv": enemy_pv_value, "enemy_pv_max": enemy_pv_value,
         "enemy_timore": enemy_timore_value, "enemy_timore_max": enemy_timore_value,
@@ -1133,10 +1134,14 @@ def resolve_combat_round(run, action_key):
             combat["player_bleed_turns"] = gd.ENEMY_BLEED_TURNS
             combat["player_bleed_dmg"] = bleed_dmg
             combat["player_bleed_target"] = target
-            combat["player_bleed_kind"] = "sanguinamento"
+            combat["player_bleed_kind"] = combat.get("dot_kind", "sanguinamento")
             nome_stat = "Vita" if target == "pv" else "Timore"
-            log.append("%s ti ferisce in profondità: sanguini, perdendo %d %s a turno per %d turni." %
-                        (combat["name"], bleed_dmg, nome_stat, gd.ENEMY_BLEED_TURNS))
+            if combat["player_bleed_kind"] == "veleno":
+                log.append("%s ti morde: sei avvelenato, perderai %d %s a turno per %d turni." %
+                            (combat["name"], bleed_dmg, nome_stat, gd.ENEMY_BLEED_TURNS))
+            else:
+                log.append("%s ti ferisce in profondità: sanguini, perdendo %d %s a turno per %d turni." %
+                            (combat["name"], bleed_dmg, nome_stat, gd.ENEMY_BLEED_TURNS))
             return
 
         fear_chance = combat["fear_chance"]

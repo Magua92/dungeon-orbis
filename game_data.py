@@ -150,20 +150,36 @@ ENEMY_POOLS = {
     1: [("Goblin Razziatore", "👺", "equilibrato"), ("Cane Selvatico", "🐺", "fisico"), ("Predone Solitario", "🗡️", "equilibrato"),
         ("Ratto Colossale", "🐀", "fisico"), ("Corvo Malato", "🐦", "mentale")],
     2: [("Orco Sbandato", "👹", "fisico"), ("Sciacallo delle Rovine", "🦴", "fisico"), ("Predone Armato", "🗡️", "equilibrato"),
-        ("Goblin Sciamano", "👺", "mentale"), ("Cinghiale Furioso", "🐗", "fisico")],
+        ("Goblin Sciamano", "👺", "mentale"), ("Cinghiale Furioso", "🐗", "fisico"), ("Rospo Tossico", "🐸", "fisico")],
     3: [("Ombra Vagante", "👻", "mentale"), ("Bandito Esperto", "🗡️", "equilibrato"), ("Orco Guerriero", "👹", "fisico"),
-        ("Troll delle Paludi", "🧌", "fisico"), ("Nano Spergiuro", "🪓", "equilibrato")],
+        ("Troll delle Paludi", "🧌", "fisico"), ("Nano Spergiuro", "🪓", "equilibrato"),
+        ("Verme della Melma", "🪱", "equilibrato"), ("Cinghialotto Impaludato", "🐗", "fisico")],
     4: [("Spettro del Confine", "👹", "mentale"), ("Fauna Corrotta", "🐗", "fisico"), ("Draugr Risvegliato", "💀", "mentale"),
-        ("Purificatore Eretico", "✨", "mentale"), ("Troll da Guerra", "🧌", "fisico")],
+        ("Purificatore Eretico", "✨", "mentale"), ("Troll da Guerra", "🧌", "fisico"), ("Sciamana dei Giunchi", "🌿", "mentale")],
     5: [("Cavaliere Caduto", "💀", "equilibrato"), ("Orrore Nebbioso", "👁️", "mentale"), ("Colosso di Pietra", "🗿", "fisico"),
-        ("Orco Ancestrale", "👹", "fisico"), ("Nano Spergiuro Anziano", "🪓", "equilibrato")],
+        ("Orco Ancestrale", "👹", "fisico"), ("Nano Spergiuro Anziano", "🪓", "equilibrato"), ("Sciame di Zanzare Regine", "🦟", "mentale")],
     6: [("Draugr Ancestrale", "💀", "mentale"), ("Purificatore Eretico Superiore", "✨", "mentale"), ("Colosso Runico", "🗿", "fisico"),
         ("Troll delle Cime", "🧌", "fisico"), ("Ombra Ancestrale", "👻", "mentale")],
     7: [("Colosso di Guerra", "🗿", "fisico"), ("Draugr Signore", "💀", "mentale"), ("Orco Sovrano", "👹", "fisico"),
         ("Purificatore Eretico Supremo", "✨", "mentale"), ("Nano Spergiuro Maledetto", "🪓", "equilibrato")],
 }
 BOSS_POOL = [("Il Signore delle Rovine", "👑", "equilibrato"), ("Il Colosso Corrotto", "🗿", "fisico"),
-             ("Il Re-Ombra", "👻", "mentale"), ("Lo Spergiuro Eterno", "🪓", "equilibrato")]
+             ("Il Re-Ombra", "👻", "mentale"), ("Lo Spergiuro Eterno", "🪓", "equilibrato"),
+             ("Madre delle Sanguisughe", "🩸", "equilibrato"), ("Il Guardiano Sommerso", "🐢", "fisico")]
+
+# Nomi (devono combaciare esattamente col primo elemento della tupla in ENEMY_POOLS/BOSS_POOL)
+# il cui danno nel tempo va etichettato "veleno" invece del default "sanguinamento" — stesso
+# identico effetto in gioco (vedi ENEMY_BLEED_* sopra), cambia solo il testo di log e l'icona/
+# colore che combat.html gli applica. Qualunque nome non presente qui resta "sanguinamento",
+# quindi questa aggiunta non cambia nulla per i mostri gia' esistenti.
+MONSTER_DOT_KIND = {
+    "Rospo Tossico": "veleno",
+    "Verme della Melma": "veleno",
+    "Cinghialotto Impaludato": "veleno",
+    "Sciamana dei Giunchi": "veleno",
+    "Sciame di Zanzare Regine": "veleno",
+    "Madre delle Sanguisughe": "veleno",
+}
 
 
 def slugify(text):
