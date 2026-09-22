@@ -1668,7 +1668,7 @@ def _fresh_arena_status():
         "evasion_turns": 0, "evasion_chance": 0.0,
         "stunned": 0, "slowed_turns": 0, "weaken_turns": 0, "weaken_amount": 0,
         "burn_turns": 0, "burn_dmg": 0,
-        "bleed_turns": 0, "bleed_dmg": 0, "bleed_kind": None,
+        "bleed_turns": 0, "bleed_dmg": 0, "bleed_kind": None, "bleed_target": None,
         "egida_triggered": False,
     }
 
@@ -1810,11 +1810,13 @@ def _arena_apply_damage(actor, target, target_status, dmg, timore_dmg, log):
                         log.append("L'Elmo del Primo Re di Karag-Duraz protegge %s dalla ferita: non sanguina." % target["name"])
                     else:
                         bleed_dmg = random.randint(*gd.ITEM_ENEMY_DOT_DMG)
+                        bleed_target = "timore" if proc_kind == "veleno" else "pv"
                         target_status["bleed_turns"] = gd.ITEM_ENEMY_DOT_TURNS
                         target_status["bleed_dmg"] = bleed_dmg
                         target_status["bleed_kind"] = proc_kind
+                        target_status["bleed_target"] = bleed_target
                         if proc_kind == "veleno":
-                            log.append("Il Plettro del Destino incide: %s è avvelenato, perderà %d PV a turno per %d turni." %
+                            log.append("Il Plettro del Destino incide: %s è avvelenato, perderà %d Timore a turno per %d turni." %
                                         (target["name"], bleed_dmg, gd.ITEM_ENEMY_DOT_TURNS))
                         else:
                             log.append("La Zanna dell'Uomorsomaiale morde ancora: %s sanguina, perdendo %d PV a turno per %d turni." %
@@ -1978,14 +1980,20 @@ def resolve_arena_round(state_a, state_b, action_a, action_b, dmg_multiplier=Non
         if side_status.get("bleed_turns", 0) > 0:
             bleed_dmg = side_status.get("bleed_dmg", 0)
             kind = side_status.get("bleed_kind") or "sanguinamento"
-            if kind == "veleno":
+            target_stat = side_status.get("bleed_target") or "pv"
+            if target_stat == "timore":
+                side_state["leader"]["timore"] -= bleed_dmg
+                log.append("Il veleno in %s si diffonde: perde %d Timore." % (side_state["name"], bleed_dmg))
+            elif kind == "veleno":
+                side_state["leader"]["pv"] -= bleed_dmg
                 log.append("Il veleno in %s si diffonde: perde %d PV." % (side_state["name"], bleed_dmg))
             else:
+                side_state["leader"]["pv"] -= bleed_dmg
                 log.append("Il sanguinamento di %s si aggrava: perde %d PV." % (side_state["name"], bleed_dmg))
-            side_state["leader"]["pv"] -= bleed_dmg
             side_status["bleed_turns"] -= 1
             if side_status["bleed_turns"] <= 0:
                 side_status["bleed_kind"] = None
+                side_status["bleed_target"] = None
         if side_status.get("weaken_turns", 0) > 0:
             side_status["weaken_turns"] -= 1
         if side_status.get("slowed_turns", 0) > 0:
