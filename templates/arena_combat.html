@@ -185,9 +185,9 @@
     if ((m = text.match(/^I Compagni del Martello di (.+?) colpiscono (.+?) per (\d+) danni\./))) return [{ side: sideOf(m[2]), field: 'pv', delta: -parseInt(m[3], 10) }];
     if ((m = text.match(/^L'Ariete di (.+?) incalza il Timore di (.+?) per (\d+) danni\./))) return [{ side: sideOf(m[2]), field: 'timore', delta: -parseInt(m[3], 10) }];
     if ((m = text.match(/morde ancora: (.+?) sanguina, perdendo (\d+) PV/))) return [{ side: sideOf(m[1]), field: 'pv', delta: -parseInt(m[2], 10) }];
-    if ((m = text.match(/incide: (.+?) è avvelenato, perderà (\d+) PV/))) return [{ side: sideOf(m[1]), field: 'pv', delta: -parseInt(m[2], 10) }];
+    if ((m = text.match(/incide: (.+?) è avvelenato, perderà (\d+) (PV|Timore)/))) return [{ side: sideOf(m[1]), field: m[3] === 'Timore' ? 'timore' : 'pv', delta: -parseInt(m[2], 10) }];
     if ((m = text.match(/^Il sanguinamento di (.+?) si aggrava: perde (\d+) PV/))) return [{ side: sideOf(m[1]), field: 'pv', delta: -parseInt(m[2], 10) }];
-    if ((m = text.match(/^Il veleno in (.+?) si diffonde: perde (\d+) PV/))) return [{ side: sideOf(m[1]), field: 'pv', delta: -parseInt(m[2], 10) }];
+    if ((m = text.match(/^Il veleno in (.+?) si diffonde: perde (\d+) (PV|Timore)/))) return [{ side: sideOf(m[1]), field: m[3] === 'Timore' ? 'timore' : 'pv', delta: -parseInt(m[2], 10) }];
     return [];
   }
 

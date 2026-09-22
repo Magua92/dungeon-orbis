@@ -58,6 +58,25 @@
       </label></div>
     </div>
     <div style="font-size:0.7rem;opacity:0.6;margin-top:0.5rem">Le opzioni "Strumenti del Mestiere" si sbloccano selezionando quell'abilità qui sotto.</div>
+
+    {% set relevant_ids = [] %}
+    {% for o in owned %}{% if o.item_id not in relevant_ids %}{% set _ = relevant_ids.append(o.item_id) %}{% endif %}{% endfor %}
+    {% for iid, it in items.items() %}{% if it.rarity == 'base' and iid not in owned_ids and iid not in relevant_ids %}{% set _ = relevant_ids.append(iid) %}{% endif %}{% endfor %}
+    {% if relevant_ids %}
+    <div style="margin-top:0.8rem;border-top:1px solid #4a3d2833;padding-top:0.7rem">
+      <div style="font-size:0.78rem;color:var(--gold-light);font-family:'Cinzel',serif;margin-bottom:0.5rem">📖 Cosa fanno questi oggetti</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:0.6rem">
+        {% for iid in relevant_ids %}
+        {% set it = items[iid] %}
+        <div style="border:1px solid var(--border);border-radius:8px;padding:0.6rem;font-size:0.75rem">
+          <div><strong>{{ it.name }}</strong> <span style="opacity:0.6;font-size:0.68rem">({{ 'Arma' if it.slot == 'arma' else 'Armatura' }} · {{ it.rarity }})</span></div>
+          <div style="margin-top:0.25rem;color:var(--gold-light)">{{ format_item_effects(it.effects) }}</div>
+          {% if it.lore %}<div style="margin-top:0.3rem;opacity:0.65;font-style:italic">{{ it.lore }}</div>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
   </div>
 
   <div class="panel-box">
