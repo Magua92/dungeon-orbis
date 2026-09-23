@@ -77,7 +77,7 @@
 <audio id="duel-start-music" src="/static/music/duel_start.mp3"></audio>
 <noscript>
 <div class="combat-log">
-  {% for line in match.log %}<div class="{{ line|logclass }}">{{ line }}</div>{% endfor %}
+  {% for line in match.log %}{% if line != '__BEAT__' %}<div class="{{ line|logclass }}">{{ line }}</div>{% endif %}{% endfor %}
 </div>
 </noscript>
 
@@ -352,7 +352,11 @@
     if (/^Formazione Difensiva:|^Pontifex Maximus:/.test(text)) return 'buff_difesa';
     if (/morde ancora: .+ sanguina/.test(text)) return 'enemy_bleed_applied';
     if (/incide: .+ è avvelenato/.test(text)) return 'enemy_poison_applied';
-    if (/infligg|colpiscono per|incalza il Timore|Colpo critico|subisce \d+ danni|scende di \d+|Le fiamme infliggono/.test(text)) return 'combat';
+    // Solo le righe con il nome REALE del bersaglio e il numero finale gia' applicato
+    // fanno scattare suono/animazione: il testo dell'abilita' ("Attacca: infligge X
+    // danni.") e l'annuncio del critico sono sempre seguiti, nello stesso colpo, da una
+    // di queste righe — farli suonare entrambi raddoppierebbe lo stesso colpo.
+    if (/subisce \d+ danni|scende di \d+|Le fiamme infliggono|colpiscono per|incalza il Timore/.test(text)) return 'combat';
     if (/scudo|Scudo|assorbe|attutisce|ignora completamente|stordisce/.test(text)) return 'shield';
     if (/recuperi|recupera|ti infonde/.test(text)) return 'heal';
     return null;
@@ -377,6 +381,13 @@
   var currentActor = null;
   var events = [];
   lines.forEach(function(line) {
+    if (line === '__BEAT__') {
+      // stacco netto tra l'azione di un giocatore e quella dell'altro nello stesso
+      // round: nessun testo, nessun suono, solo una pausa — altrimenti i due colpi
+      // (il tuo e quello dell'avversario) si accavallano in un'unica sequenza confusa.
+      events.push({ text: null, cue: 'beat' });
+      return;
+    }
     var header = line.match(/^— (.+) —$/);
     if (header) {
       currentActor = header[1];
@@ -390,6 +401,7 @@
   async function playSequence() {
     for (var i = 0; i < events.length; i++) {
       var ev = events[i];
+      if (ev.cue === 'beat') { await wait(500); continue; }
       var div = document.createElement('div');
       var isHeal = /recuperi|recupera|ti infonde/.test(ev.text);
       div.textContent = lineIcon(isHeal ? 'heal' : ev.cue) + ev.text;
