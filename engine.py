@@ -2046,12 +2046,20 @@ def resolve_arena_round(state_a, state_b, action_a, action_b, dmg_multiplier=Non
         order.reverse()
 
     for i, (side, actor, target, action_key) in enumerate(order):
+        if i == 1:
+            log.append(ROUND_BEAT_MARKER)
         result = _arena_take_action(actor, target, action_key, i == 0, log, dmg_multiplier)
         if result == "fuga":
             return ("vittoria_b" if side == "a" else "vittoria_a"), log
-        esito = _arena_check_victory(state_a, state_b)
-        if esito:
-            return esito, log
+
+    # L'esito si controlla solo DOPO che entrambe le azioni del round sono state
+    # risolte per intero — mai a meta' round. Altrimenti, se il primo dei due ad agire
+    # (per iniziativa) elimina l'avversario, il colpo del secondo non verrebbe mai
+    # calcolato: un vero scambio simultaneo che avrebbe eliminato entrambi finirebbe
+    # per sembrare una vittoria a senso unico invece di un pareggio.
+    esito = _arena_check_victory(state_a, state_b)
+    if esito:
+        return esito, log
 
     _arena_check_egida_trigger(state_a, status_a, log)
     _arena_check_egida_trigger(state_b, status_b, log)
