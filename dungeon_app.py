@@ -874,7 +874,7 @@ def arena_home():
         if m["status"] == "attesa_b":
             m["azione_richiesta"] = "Preparati per accettare la sfida" if side == "b" else "In attesa che l'avversario si prepari"
         elif m["status"] == "in_corso":
-            m["azione_richiesta"] = "In attesa dell'avversario" if m.get("pending_action_%s" % side) else "Tocca a te!"
+            m["azione_richiesta"] = "Tocca a te!" if m.get("turn") == side else "In attesa dell'avversario"
         else:
             m["azione_richiesta"] = "Vittoria!" if m.get("winner") == side else ("Pareggio" if m.get("winner") == "pareggio" else "Sconfitta")
 
@@ -936,8 +936,8 @@ def arena_prepare_submit():
         match = db.get_arena_match(int(match_id))
         if not match or match["status"] != "attesa_b" or match["faction_b"] != faction or match["name_b"] != name:
             return redirect(url_for("arena_home", faction=faction, name=name))
-        start_log = engine.start_arena_match(match["state_a"], state)
-        db.set_arena_state_b(match["id"], state, start_log, timestamp)
+        start_log, first_turn = engine.start_arena_match(match["state_a"], state)
+        db.set_arena_state_b(match["id"], state, start_log, first_turn, timestamp)
         send_arena_discord("⚔️ Il duello tra **%s** (%s) e **%s** (%s) è iniziato!" %
                             (match["name_a"], match["faction_a"], name, faction))
         return redirect(url_for("arena_match", match_id=match["id"], faction=faction, name=name))
@@ -978,16 +978,12 @@ def arena_match(match_id):
                                 my_state=my_state, opp_state=opp_state,
                                 CLASS_PASSIVES=gd.CLASS_PASSIVES, ENTOURAGE_TYPES=gd.ENTOURAGE_TYPES)
 
-    my_pending = match.get("pending_action_%s" % side)
-    if match.get("viewed_round_%s" % side, 0) < match["round"]:
-        db.update_arena_match(match_id, datetime.datetime.utcnow().isoformat(),
-                               **{"viewed_round_%s" % side: match["round"]})
+    my_pending = match.get("turn") != side
     actions = engine.arena_available_actions(my_state)
     return render_template(
         "arena_combat.html", match=match, faction=faction, name=name, side=side,
-        my_state=my_state, opp_state=opp_state, actions=actions, waiting=bool(my_pending),
+        my_state=my_state, opp_state=opp_state, actions=actions, waiting=my_pending,
         CLASS_PASSIVES=gd.CLASS_PASSIVES, ENTOURAGE_TYPES=gd.ENTOURAGE_TYPES,
-        attesa_avversario=request.args.get("attesa_avversario") == "1",
     )
 
 
@@ -1002,15 +998,10 @@ def arena_match_act(match_id):
     side = _arena_side(match, faction, name)
     if side is None:
         return redirect(url_for("arena_home", faction=faction, name=name))
-    if match.get("pending_action_%s" % side):
+    if match.get("turn") != side:
+        # non e' il tuo turno: nei duelli a turni alternati, solo chi deve muovere
+        # ora puo' agire — l'altro resta passivo finche' non tocca a lui.
         return redirect(url_for("arena_match", match_id=match_id, faction=faction, name=name))
-
-    other_side = "b" if side == "a" else "a"
-    if match["round"] > 1 and match.get("viewed_round_%s" % other_side, 0) < match["round"]:
-        # l'avversario non ha ancora caricato la schermata di questo round: lo si
-        # lascia recuperare invece di lasciar correre avanti chi e' piu' rapido,
-        # altrimenti i due schermi finiscono per raccontare round diversi.
-        return redirect(url_for("arena_match", match_id=match_id, faction=faction, name=name, attesa_avversario=1))
 
     my_state = match["state_%s" % side]
     valid_keys = {a["key"] for a in engine.arena_available_actions(my_state) if a["available"]}
@@ -1018,25 +1009,18 @@ def arena_match_act(match_id):
         return redirect(url_for("arena_match", match_id=match_id, faction=faction, name=name))
 
     timestamp = datetime.datetime.utcnow().isoformat()
-    other_pending = match.get("pending_action_%s" % other_side)
-
-    if not other_pending:
-        db.update_arena_match(match_id, timestamp, **{"pending_action_%s" % side: action_key})
-        return redirect(url_for("arena_match", match_id=match_id, faction=faction, name=name))
-
-    action_a = action_key if side == "a" else other_pending
-    action_b = action_key if side == "b" else other_pending
     try:
         arena_dmg_pct = int(db.get_setting("arena_dmg_bonus_pct", "10"))
     except (TypeError, ValueError):
         arena_dmg_pct = 10
-    esito, log = engine.resolve_arena_round(match["state_a"], match["state_b"], action_a, action_b,
-                                             dmg_multiplier=1 + arena_dmg_pct / 100)
+    esito, log, next_turn = engine.resolve_arena_turn(match["state_a"], match["state_b"], side, action_key,
+                                                        dmg_multiplier=1 + arena_dmg_pct / 100)
     fields = {
         "state_a": match["state_a"], "state_b": match["state_b"], "log": log,
-        "round": match["round"] + 1, "pending_action_a": None, "pending_action_b": None,
+        "round": match["round"] + 1,
     }
     if esito == "in_corso":
+        fields["turn"] = next_turn
         db.update_arena_match(match_id, timestamp, **fields)
     else:
         winner = {"vittoria_a": "a", "vittoria_b": "b", "pareggio": "pareggio"}[esito]
@@ -1059,8 +1043,7 @@ def arena_match_surrender(match_id):
         return redirect(url_for("arena_home", faction=faction, name=name))
     winner = "b" if side == "a" else "a"
     timestamp = datetime.datetime.utcnow().isoformat()
-    db.update_arena_match(match_id, timestamp, status="concluso", winner=winner,
-                           pending_action_a=None, pending_action_b=None)
+    db.update_arena_match(match_id, timestamp, status="concluso", winner=winner)
     send_arena_discord("🏳️ **%s** si arrende nell'ignominia più totale e nel disonore imperituro contro **%s**!" %
                         (match["name_%s" % side], match["name_%s" % winner]))
     return redirect(url_for("arena_match", match_id=match_id, faction=faction, name=name))
@@ -1071,22 +1054,8 @@ def arena_match_status(match_id):
     match = db.get_arena_match(match_id)
     if not match:
         return {"error": "not_found"}, 404
-    faction = request.args.get("faction")
-    name = request.args.get("name")
-    opponent_viewed = None
-    side = _arena_side(match, faction, name) if faction and name else None
-    if side:
-        # anche una richiesta di stato "leggera" conta come aver visto il round
-        # corrente: altrimenti due giocatori bloccati entrambi in attesa l'uno
-        # dell'altro (nessuno dei due carica mai una pagina intera) restano
-        # bloccati per sempre, senza che nessuno dei due possa sbloccare l'altro.
-        if match.get("viewed_round_%s" % side, 0) < match["round"]:
-            db.update_arena_match(match_id, datetime.datetime.utcnow().isoformat(),
-                                   **{"viewed_round_%s" % side: match["round"]})
-        other_side = "b" if side == "a" else "a"
-        opponent_viewed = match.get("viewed_round_%s" % other_side, 0) >= match["round"]
-    return {"status": match["status"], "round": match["round"], "updated_at": match["updated_at"],
-            "opponent_viewed": opponent_viewed}
+    return {"status": match["status"], "round": match["round"], "turn": match.get("turn"),
+            "updated_at": match["updated_at"]}
 
 
 if __name__ == "__main__":

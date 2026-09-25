@@ -301,15 +301,14 @@ def get_arena_matches_for(faction, name):
     return matches
 
 
-def set_arena_state_b(match_id, state_b, start_log, timestamp):
+def set_arena_state_b(match_id, state_b, start_log, first_turn, timestamp):
     """Il lato B si e' preparato: il duello passa a 'in_corso', con il log degli
-    effetti "una tantum" di inizio duello (es. scudo del Novizio). Chi agisce per
-    primo in ogni round e' deciso dinamicamente da resolve_arena_round (Arciere
-    incluso), non fissato qui."""
+    effetti "una tantum" di inizio duello (es. scudo del Novizio) e il turno
+    impostato su chi muove per primo (deciso da start_arena_match, Arciere incluso)."""
     conn = get_conn()
     conn.execute(
-        "UPDATE arena_matches SET state_b=?, status='in_corso', log=?, updated_at=? WHERE id=?",
-        (json.dumps(state_b, ensure_ascii=False), json.dumps(start_log, ensure_ascii=False), timestamp, match_id)
+        "UPDATE arena_matches SET state_b=?, status='in_corso', log=?, turn=?, updated_at=? WHERE id=?",
+        (json.dumps(state_b, ensure_ascii=False), json.dumps(start_log, ensure_ascii=False), first_turn, timestamp, match_id)
     )
     conn.commit()
     conn.close()

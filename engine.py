@@ -1950,7 +1950,9 @@ def _arena_check_victory(state_a, state_b):
 def start_arena_match(state_a, state_b):
     """Effetti "una tantum" all'inizio del duello, equivalenti alla parte iniziale
     di start_combat in PvE: lo scudo del Novizio. Va chiamata una sola volta, quando
-    entrambi i lati si sono preparati e il duello comincia davvero."""
+    entrambi i lati si sono preparati e il duello comincia davvero. Ritorna anche
+    chi agisce per primo (turni singoli alternati: non c'e' piu' un "round" in cui
+    entrambi agiscono insieme, un solo lato muove alla volta)."""
     log = []
     for state in (state_a, state_b):
         novizi = [m for m in state["seguito"] if m["alive"] and m["type"] == "novizio"]
@@ -1960,114 +1962,107 @@ def start_arena_match(state_a, state_b):
             _troop_falls(state, novizi[0], log)
             log.append("%s: un Novizio si consuma per proteggerlo, guadagna %d scudo Vita e %d scudo Timore." %
                         (state["name"], gd.NOVIZIO_SHIELD_PHYSICAL, gd.NOVIZIO_SHIELD_TIMORE))
-    return log
-
-
-def resolve_arena_round(state_a, state_b, action_a, action_b, dmg_multiplier=None):
-    """Risolve un intero round: entrambe le azioni sono gia' state scelte in modo
-    indipendente e asincrono. Ritorna (esito, log) con esito in
-    'in_corso' | 'vittoria_a' | 'vittoria_b' | 'pareggio'. dmg_multiplier permette
-    di sovrascrivere ARENA_DMG_MULTIPLIER (usato dal pannello admin)."""
-    dmg_multiplier = dmg_multiplier if dmg_multiplier is not None else gd.ARENA_DMG_MULTIPLIER
-    log = []
-    status_a, status_b = state_a["arena_status"], state_b["arena_status"]
-
-    # tick di inizio round: cooldown, bruciature, rallentamento, indebolimento,
-    # cura passiva del Seguito/classe, contrattacchi automatici di Martello/Ariete
-    for side_state, side_status, opponent_state in ((state_a, status_a, state_b), (state_b, status_b, state_a)):
-        for k in list(side_state["cooldowns"].keys()):
-            if side_state["cooldowns"][k] > 0:
-                side_state["cooldowns"][k] -= 1
-        if side_status.get("burn_turns", 0) > 0:
-            burn_dmg = round(side_status.get("burn_dmg", 0) * dmg_multiplier)
-            side_state["leader"]["pv"] -= burn_dmg
-            log.append("Le fiamme infliggono %d danni a %s." % (burn_dmg, side_state["name"]))
-            side_status["burn_turns"] -= 1
-        if side_status.get("bleed_turns", 0) > 0:
-            bleed_dmg = side_status.get("bleed_dmg", 0)
-            kind = side_status.get("bleed_kind") or "sanguinamento"
-            target_stat = side_status.get("bleed_target") or "pv"
-            if target_stat == "timore":
-                side_state["leader"]["timore"] -= bleed_dmg
-                log.append("Il veleno in %s si diffonde: perde %d Timore." % (side_state["name"], bleed_dmg))
-            elif kind == "veleno":
-                side_state["leader"]["pv"] -= bleed_dmg
-                log.append("Il veleno in %s si diffonde: perde %d PV." % (side_state["name"], bleed_dmg))
-            else:
-                side_state["leader"]["pv"] -= bleed_dmg
-                log.append("Il sanguinamento di %s si aggrava: perde %d PV." % (side_state["name"], bleed_dmg))
-            side_status["bleed_turns"] -= 1
-            if side_status["bleed_turns"] <= 0:
-                side_status["bleed_kind"] = None
-                side_status["bleed_target"] = None
-        if side_status.get("weaken_turns", 0) > 0:
-            side_status["weaken_turns"] -= 1
-        if side_status.get("slowed_turns", 0) > 0:
-            side_status["slowed_turns"] -= 1
-
-        heal_pv = 0
-        heal_timore = 0
-        if any(m["alive"] and m["type"] == "purificatore" for m in side_state["seguito"]):
-            heal_pv += gd.PURIFICATORE_HEAL
-        if any(m["alive"] and m["type"] == "sciamano" for m in side_state["seguito"]):
-            heal_timore += gd.SCIAMANO_HEAL
-        if "bastione_della_fede" in side_state.get("equipped_abilities", []):
-            heal_pv += 2
-        if side_state["class"] == "Diplomatico":
-            vive = sum(1 for m in side_state["seguito"] if m["alive"])
-            if vive:
-                heal_pv += vive
-                heal_timore += vive
-        if heal_pv > 0:
-            side_state["leader"]["pv"] = min(side_state["leader"]["pv_max"], side_state["leader"]["pv"] + heal_pv)
-            log.append("%s recupera %d Vita (cura passiva)." % (side_state["name"], heal_pv))
-        if heal_timore > 0:
-            side_state["leader"]["timore"] = min(side_state["leader"]["timore_max"], side_state["leader"]["timore"] + heal_timore)
-            log.append("%s recupera %d Timore (cura passiva)." % (side_state["name"], heal_timore))
-
-        martelli = sum(1 for m in side_state["seguito"] if m["alive"] and m["type"] == "martello")
-        arieti = sum(1 for m in side_state["seguito"] if m["alive"] and m["type"] == "ariete")
-        if martelli:
-            opp_armor = _arena_effective_defense(opponent_state, opponent_state["arena_status"], "armor")
-            colpo = max(1, round(martelli * gd.MARTELLO_COUNTER_DMG * dmg_multiplier) - opp_armor)
-            opponent_state["leader"]["pv"] -= colpo
-            log.append("I Compagni del Martello di %s colpiscono %s per %d danni." % (side_state["name"], opponent_state["name"], colpo))
-        if arieti:
-            opp_mres = _arena_effective_defense(opponent_state, opponent_state["arena_status"], "mres")
-            colpo = max(1, round(arieti * gd.ARIETE_COUNTER_DMG * dmg_multiplier) - opp_mres)
-            opponent_state["leader"]["timore"] -= colpo
-            log.append("L'Ariete di %s incalza il Timore di %s per %d danni." % (side_state["name"], opponent_state["name"], colpo))
-
-        esito = _arena_check_victory(state_a, state_b)
-        if esito:
-            return esito, log
-
     has_arciere_a = any(m["alive"] and m["type"] == "arciere" for m in state_a["seguito"])
     has_arciere_b = any(m["alive"] and m["type"] == "arciere" for m in state_b["seguito"])
     p_a_first = max(0.0, min(1.0, 0.5 + (0.25 if has_arciere_a else 0) - (0.25 if has_arciere_b else 0)))
-    a_first = random.random() < p_a_first
+    first_turn = "a" if random.random() < p_a_first else "b"
+    return log, first_turn
 
-    order = [("a", state_a, state_b, action_a), ("b", state_b, state_a, action_b)]
-    if not a_first:
-        order.reverse()
 
-    for i, (side, actor, target, action_key) in enumerate(order):
-        if i == 1:
-            log.append(ROUND_BEAT_MARKER)
-        result = _arena_take_action(actor, target, action_key, i == 0, log, dmg_multiplier)
-        if result == "fuga":
-            return ("vittoria_b" if side == "a" else "vittoria_a"), log
+def resolve_arena_turn(state_a, state_b, actor_side, action_key, dmg_multiplier=None):
+    """Risolve UN singolo turno: solo il lato indicato da actor_side ('a' o 'b') agisce,
+    l'altro resta passivo fino al proprio turno — niente piu' scambio simultaneo per
+    round, i turni si alternano rigidamente. I tick di inizio-turno (cooldown,
+    bruciature, sanguinamento/veleno, cura passiva, contrattacchi automatici di
+    Martello/Ariete) si applicano solo al lato che sta muovendo: e' il suo turno, e'
+    il suo momento. Ritorna (esito, log, next_turn): esito in
+    'in_corso' | 'vittoria_a' | 'vittoria_b' | 'pareggio', next_turn e' il lato
+    ('a'/'b') che muovera' al prossimo turno se esito=='in_corso', altrimenti None."""
+    dmg_multiplier = dmg_multiplier if dmg_multiplier is not None else gd.ARENA_DMG_MULTIPLIER
+    log = []
 
-    # L'esito si controlla solo DOPO che entrambe le azioni del round sono state
-    # risolte per intero — mai a meta' round. Altrimenti, se il primo dei due ad agire
-    # (per iniziativa) elimina l'avversario, il colpo del secondo non verrebbe mai
-    # calcolato: un vero scambio simultaneo che avrebbe eliminato entrambi finirebbe
-    # per sembrare una vittoria a senso unico invece di un pareggio.
+    if actor_side == "a":
+        actor_state, opp_state = state_a, state_b
+    else:
+        actor_state, opp_state = state_b, state_a
+    actor_status, opp_status = actor_state["arena_status"], opp_state["arena_status"]
+
+    for k in list(actor_state["cooldowns"].keys()):
+        if actor_state["cooldowns"][k] > 0:
+            actor_state["cooldowns"][k] -= 1
+    if actor_status.get("burn_turns", 0) > 0:
+        burn_dmg = round(actor_status.get("burn_dmg", 0) * dmg_multiplier)
+        actor_state["leader"]["pv"] -= burn_dmg
+        log.append("Le fiamme infliggono %d danni a %s." % (burn_dmg, actor_state["name"]))
+        actor_status["burn_turns"] -= 1
+    if actor_status.get("bleed_turns", 0) > 0:
+        bleed_dmg = actor_status.get("bleed_dmg", 0)
+        kind = actor_status.get("bleed_kind") or "sanguinamento"
+        target_stat = actor_status.get("bleed_target") or "pv"
+        if target_stat == "timore":
+            actor_state["leader"]["timore"] -= bleed_dmg
+            log.append("Il veleno in %s si diffonde: perde %d Timore." % (actor_state["name"], bleed_dmg))
+        elif kind == "veleno":
+            actor_state["leader"]["pv"] -= bleed_dmg
+            log.append("Il veleno in %s si diffonde: perde %d PV." % (actor_state["name"], bleed_dmg))
+        else:
+            actor_state["leader"]["pv"] -= bleed_dmg
+            log.append("Il sanguinamento di %s si aggrava: perde %d PV." % (actor_state["name"], bleed_dmg))
+        actor_status["bleed_turns"] -= 1
+        if actor_status["bleed_turns"] <= 0:
+            actor_status["bleed_kind"] = None
+            actor_status["bleed_target"] = None
+    if actor_status.get("weaken_turns", 0) > 0:
+        actor_status["weaken_turns"] -= 1
+    if actor_status.get("slowed_turns", 0) > 0:
+        actor_status["slowed_turns"] -= 1
+
+    heal_pv = 0
+    heal_timore = 0
+    if any(m["alive"] and m["type"] == "purificatore" for m in actor_state["seguito"]):
+        heal_pv += gd.PURIFICATORE_HEAL
+    if any(m["alive"] and m["type"] == "sciamano" for m in actor_state["seguito"]):
+        heal_timore += gd.SCIAMANO_HEAL
+    if "bastione_della_fede" in actor_state.get("equipped_abilities", []):
+        heal_pv += 2
+    if actor_state["class"] == "Diplomatico":
+        vive = sum(1 for m in actor_state["seguito"] if m["alive"])
+        if vive:
+            heal_pv += vive
+            heal_timore += vive
+    if heal_pv > 0:
+        actor_state["leader"]["pv"] = min(actor_state["leader"]["pv_max"], actor_state["leader"]["pv"] + heal_pv)
+        log.append("%s recupera %d Vita (cura passiva)." % (actor_state["name"], heal_pv))
+    if heal_timore > 0:
+        actor_state["leader"]["timore"] = min(actor_state["leader"]["timore_max"], actor_state["leader"]["timore"] + heal_timore)
+        log.append("%s recupera %d Timore (cura passiva)." % (actor_state["name"], heal_timore))
+
+    martelli = sum(1 for m in actor_state["seguito"] if m["alive"] and m["type"] == "martello")
+    arieti = sum(1 for m in actor_state["seguito"] if m["alive"] and m["type"] == "ariete")
+    if martelli:
+        opp_armor = _arena_effective_defense(opp_state, opp_status, "armor")
+        colpo = max(1, round(martelli * gd.MARTELLO_COUNTER_DMG * dmg_multiplier) - opp_armor)
+        opp_state["leader"]["pv"] -= colpo
+        log.append("I Compagni del Martello di %s colpiscono %s per %d danni." % (actor_state["name"], opp_state["name"], colpo))
+    if arieti:
+        opp_mres = _arena_effective_defense(opp_state, opp_status, "mres")
+        colpo = max(1, round(arieti * gd.ARIETE_COUNTER_DMG * dmg_multiplier) - opp_mres)
+        opp_state["leader"]["timore"] -= colpo
+        log.append("L'Ariete di %s incalza il Timore di %s per %d danni." % (actor_state["name"], opp_state["name"], colpo))
+
     esito = _arena_check_victory(state_a, state_b)
     if esito:
-        return esito, log
+        return esito, log, None
 
-    _arena_check_egida_trigger(state_a, status_a, log)
-    _arena_check_egida_trigger(state_b, status_b, log)
+    result = _arena_take_action(actor_state, opp_state, action_key, True, log, dmg_multiplier)
+    if result == "fuga":
+        return ("vittoria_b" if actor_side == "a" else "vittoria_a"), log, None
 
-    return "in_corso", log
+    esito = _arena_check_victory(state_a, state_b)
+    if esito:
+        return esito, log, None
+
+    _arena_check_egida_trigger(actor_state, actor_status, log)
+    _arena_check_egida_trigger(opp_state, opp_status, log)
+
+    return "in_corso", log, ("b" if actor_side == "a" else "a")
