@@ -1864,6 +1864,12 @@ def _arena_take_action(actor, target, action_key, is_first, log, dmg_multiplier)
 
     log.append("— %s —" % actor["name"])
 
+    if target_status.get("evasion_turns", 0) > 0:
+        target_status["evasion_turns"] -= 1
+        if random.random() < target_status.get("evasion_chance", 0):
+            log.append("Copie Illusorie: %s evita completamente il colpo di %s." % (target["name"], actor["name"]))
+            return None
+
     fake_run = {
         "leader": actor["leader"], "temp_buffs": actor["temp_buffs"], "treasure": actor["treasure"],
         "cooldowns": actor["cooldowns"], "seguito": actor["seguito"],
